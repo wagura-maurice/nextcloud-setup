@@ -57,19 +57,20 @@ nextcloud-setup/
    ```bash
    # Make the script executable and run it
    chmod +x scripts/install-nextcloud.sh
-   sudo ./scripts/install-nextcloud.sh --ssl=production
+   sudo ./scripts/install-nextcloud.sh # will trigger ssl staging by default
+   sudo ./scripts/install-nextcloud.sh --ssl=production # will trigger ssl production explicityly 
    ```
 
    For testing/development with a staging SSL certificate (avoids rate limits):
    ```bash
-   sudo ./scripts/install-nextcloud.sh --ssl=staging
+   sudo ./scripts/install-nextcloud.sh --ssl=staging # will trigger ssl staging explicityly 
    ```
 
    > **Note**: The staging certificate will trigger browser security warnings. 
    > To switch to production later, run:
    > ```bash
-   > sudo certbot delete --cert-name yourdomain.com
-   > sudo certbot --apache --non-interactive --agree-tos --email your@email.com -d yourdomain.com --redirect
+   > sudo certbot delete --cert-name data.amarissolutions.com
+   > sudo certbot --apache --non-interactive --agree-tos --email wagura465@gmail.com -d data.amarissolutions.com --redirect
    > ```
 
    The script will guide you through the installation process and automatically:
