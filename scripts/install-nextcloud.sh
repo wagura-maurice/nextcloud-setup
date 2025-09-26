@@ -917,7 +917,6 @@ EOL
         print_status "  sudo certbot --apache -d $DOMAIN_NAME --non-interactive --agree-tos --email $SSL_EMAIL --redirect"
         
         # All configuration is now in the Apache config file template above
-EOL
         
         # Enable required modules and the new site
         a2enmod ssl
