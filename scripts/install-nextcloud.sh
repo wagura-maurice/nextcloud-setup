@@ -479,13 +479,14 @@ print_section "Step 3: Downloading and Installing Nextcloud"
 # 1. Check if Nextcloud is already installed, if not download and extract
 print_status "Checking Nextcloud installation..."
 cd /var/www/
-if [ ! -f "latest.zip" ]; then
-    print_status "Downloading Nextcloud..."
-    wget -q https://download.nextcloud.com/server/releases/latest.zip
-fi
-print_status "Extracting Nextcloud..."
-unzip -q latest.zip
-rm -f latest.zip
+if [ ! -d "nextcloud" ]; then
+    if [ ! -f "latest.zip" ]; then
+        print_status "Downloading Nextcloud..."
+        wget -q https://download.nextcloud.com/server/releases/latest.zip
+    fi
+    print_status "Extracting Nextcloud..."
+    unzip -q latest.zip
+    rm -f latest.zip
 else
     print_status "Nextcloud is already installed at /var/www/nextcloud"
 fi
