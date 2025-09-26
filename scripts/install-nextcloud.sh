@@ -77,24 +77,51 @@ apt update -y
 # 2. Install required packages if not already installed
 print_status "Checking and installing required packages..."
 
+# First, add PHP repository if not already added
+if ! apt-cache policy | grep -q 'ondrej/php'; then
+    print_status "Adding PHP repository..."
+    apt install -y software-properties-common
+    add-apt-repository -y ppa:ondrej/php
+    apt update -y
+fi
+
 # List of required packages
 REQUIRED_PACKAGES=(
     apache2 
     mariadb-server 
-    php8.4 
-    php8.4-{cli,gd,common,mysql,curl,mbstring,xml,zip,json,intl,ldap,imagick,gmp,bcmath,opcache,redis,apcu}
-    libapache2-mod-php8.4 
-    php-fpm 
     unzip 
     wget 
     curl 
     git 
     redis-server 
-    php-redis 
     python3-certbot-apache
 )
 
-# Install packages that are not already installed
+# PHP 8.4 specific packages
+PHP_PACKAGES=(
+    php8.4
+    php8.4-cli
+    php8.4-gd
+    php8.4-common
+    php8.4-mysql
+    php8.4-curl
+    php8.4-mbstring
+    php8.4-xml
+    php8.4-zip
+    php8.4-json
+    php8.4-intl
+    php8.4-ldap
+    php8.4-imagick
+    php8.4-gmp
+    php8.4-bcmath
+    php8.4-opcache
+    php8.4-redis
+    php8.4-apcu
+    libapache2-mod-php8.4
+    php8.4-fpm
+)
+
+# Install base packages that are not already installed
 TO_INSTALL=()
 for pkg in "${REQUIRED_PACKAGES[@]}"; do
     if ! is_package_installed "$pkg"; then
@@ -105,31 +132,78 @@ for pkg in "${REQUIRED_PACKAGES[@]}"; do
 done
 
 if [ ${#TO_INSTALL[@]} -gt 0 ]; then
-    print_status "Installing missing packages: ${TO_INSTALL[*]}"
-    apt install -y "${TO_INSTALL[@]}"
+    print_status "Installing missing base packages: ${TO_INSTALL[*]}"
+    apt install -y "${TO_INSTALL[@]}" || {
+        print_error "Failed to install base packages. Please check your internet connection and try again."
+        exit 1
+    }
 else
-    print_status "All required packages are already installed."
+    print_status "All required base packages are already installed."
+fi
+
+# Install PHP 8.4 packages
+print_status "Installing PHP 8.4 and extensions..."
+apt install -y "${PHP_PACKAGES[@]}" || {
+    print_error "Failed to install PHP 8.4 packages. Please check the error messages above."
+    exit 1
+}
+
+# Verify PHP installation
+if ! php8.4 -v &>/dev/null; then
+    print_error "PHP 8.4 installation failed. Please check the error messages above."
+    exit 1
+else
+    print_status "PHP 8.4 and extensions installed successfully."
 fi
 
 apt update -y
 
-# 4. Install PHP 8.4 and other Dependencies
-print_status "Installing PHP 8.4 and dependencies..."
-apt install -y software-properties-common
-add-apt-repository -y ppa:ondrej/php
-apt update -y
+# 4. Configure PHP-FPM
+print_status "Configuring PHP-FPM..."
+PHP_FPM_SERVICE="php8.4-fpm"
 
-# Install PHP 8.4 with all required extensions
-apt install -y php8.4 php8.4-{bz2,gd,mysql,curl,zip,mbstring,imagick,bcmath,xml,intl,gmp,apcu,cli,common,fpm,redis,sqlite3} \
-    libapache2-mod-php8.4 zip unzip wget
+# Enable and start PHP-FPM if not already running
+if ! systemctl is-active --quiet $PHP_FPM_SERVICE; then
+    systemctl enable $PHP_FPM_SERVICE
+    systemctl start $PHP_FPM_SERVICE
+    print_status "PHP-FPM service started."
+else
+    print_status "PHP-FPM service is already running."
+fi
 
-# 5. Configure PHP settings consistently across all interfaces
+# Configure PHP settings
 print_status "Configuring PHP 8.4 settings..."
-if [ -f "scripts/configure-php.sh" ]; then
-    bash scripts/configure-php.sh
-else
-    print_error "PHP configuration script not found at scripts/configure-php.sh"
-fi
+
+# Create PHP configuration directory if it doesn't exist
+PHP_CONF_DIR="/etc/php/8.4/fpm/conf.d"
+mkdir -p "$PHP_CONF_DIR"
+
+# Configure PHP settings
+cat > "$PHP_CONF_DIR/nextcloud.ini" << 'EOL'
+; File Uploads
+upload_max_filesize = 64M
+post_max_size = 96M
+
+; Resource Limits
+memory_limit = 512M
+max_execution_time = 600
+max_input_vars = 3000
+max_input_time = 1000
+
+; OPcache Settings
+opcache.enable=1
+opcache.enable_cli=1
+opcache.interned_strings_buffer=16
+opcache.max_accelerated_files=10000
+opcache.memory_consumption=128
+opcache.save_comments=1
+opcache.revalidate_freq=60
+
+; APCu configuration
+apc.enable_cli=1
+EOL
+
+print_status "PHP 8.4 configuration completed."
 
 # 4. Enable required Apache modules and restart Apache
 print_status "Configuring Apache..."
