@@ -18,8 +18,8 @@ source "$CONFIG_DIR/install-config.conf" 2>/dev/null || {
 
 echo "Starting Nextcloud installation from $BASE_DIR..."
 
-# Set default SSL mode to production
-SSL_MODE="production"
+# Set default SSL mode to staging to avoid rate limits during testing
+SSL_MODE="staging"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
