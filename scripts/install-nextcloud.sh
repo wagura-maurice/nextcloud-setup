@@ -896,29 +896,44 @@ chmod -R 755 /var/www/nextcloud/
 sudo apt-get install -y php8.4-sqlite3
 sudo systemctl restart apache2
 
-# Run database maintenance
-print_status "Running database maintenance..."
+# Run final database maintenance and checks
+print_status "Running final database maintenance..."
 sudo -u www-data php /var/www/nextcloud/occ db:add-missing-indices
 sudo -u www-data php /var/www/nextcloud/occ db:add-missing-columns
 sudo -u www-data php /var/www/nextcloud/occ db:add-missing-primary-keys
 sudo -u www-data php /var/www/nextcloud/occ db:convert-filecache-bigint
-sudo -u www-data php /var/www/nextcloud/occ db:convert-filecache-bigint
-sudo -u www-data php /var/www/nextcloud/occ maintenance:repair --include-expensive
-sudo -u www-data php /var/www/nextcloud/occ status
 
+# Run maintenance and integrity checks
+print_status "Running system checks..."
+sudo -u www-data php /var/www/nextcloud/occ maintenance:repair --include-expensive
 sudo -u www-data php /var/www/nextcloud/occ integrity:check-core
 sudo -u www-data php /var/www/nextcloud/occ maintenance:data-fingerprint
+sudo -u www-data php /var/www/nextcloud/occ status
 
-cp -r /var/www/nextcloud/config /root/nextcloud-config-backup
-cp -r /var/www/nextcloud/data /root/nextcloud-data-backup
+# Create backups of important files
+print_status "Creating configuration backups..."
+mkdir -p /root/nextcloud-backups
+cp -r /var/www/nextcloud/config /root/nextcloud-backup-config-$(date +%Y%m%d)
+cp -r /var/www/nextcloud/data /root/nextcloud-backup-data-$(date +%Y%m%d)
 
-sudo -u www-data php /var/www/nextcloud/occ upgrade
-sudo -u www-data php /var/www/nextcloud/occ maintenance:data-fingerprint
+# Final system reboot
+print_status "Installation completed successfully!"
+print_status "The system will now reboot to apply all changes..."
+print_status "After reboot, you can access your Nextcloud at: https://$(hostname -f)"
+print_status "Admin credentials: username 'admin' with the password you set during installation"
 
-sudo apt update
-sudo apt install -y libmagickcore-6.q16-6-extra librsvg2-bin
-sudo apt install -y php8.4-imagick
-sudo systemctl restart php8.4-fpm
-sudo systemctl restart apache2
+# Save installation details
+cat > /root/nextcloud-installation-details.txt << EOL
+Nextcloud Installation Details
+=============================
+Installation Date: $(date)
+Nextcloud Version: $(sudo -u www-data php /var/www/nextcloud/occ status | grep "version" | awk '{print $3}')
+Access URL: https://$(hostname -f)
+Admin Username: admin
+Config Backup: /root/nextcloud-backup-config-$(date +%Y%m%d)
+Data Backup: /root/nextcloud-backup-data-$(date +%Y%m%d)
+EOL
 
-sudo -u www-data php /var/www/nextcloud/occ maintenance:repair
+read -p "Press any key to reboot or Ctrl+C to cancel..." -n1 -s
+echo ""
+reboot
