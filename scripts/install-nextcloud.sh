@@ -164,7 +164,7 @@ a2enmod mpm_event proxy_fcgi setenvif
 a2enconf php8.4-fpm
 
 # 3. Set required php.ini variables
-print_status("Configuring PHP 8.4 settings...")
+print_status "Configuring PHP 8.4 settings..."
 cat > /etc/php/8.4/fpm/conf.d/nextcloud.ini << 'EOL'
 ; File Uploads
 upload_max_filesize = 64M
