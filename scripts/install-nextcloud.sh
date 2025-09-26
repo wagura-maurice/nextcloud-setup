@@ -55,22 +55,28 @@ apt update -y && apt upgrade -y
 print_status "Installing Apache and MySQL Server..."
 apt install -y apache2 mariadb-server
 
-# 3. Install PHP and other Dependencies
-print_status "Installing PHP and dependencies..."
-apt install -y libapache2-mod-php8.4 php8.4-bz2 php8.4-gd php8.4-mysql php8.4-curl php8.4-zip \
-    php8.4-mbstring php8.4-imagick php8.4-bcmath php8.4-xml php8.4-intl php8.4-gmp zip unzip wget
+# 3. Add PHP 8.4 repository and update
+print_status "Adding PHP 8.4 repository and updating..."
+add-apt-repository -y ppa:ondrej/php
+apt update -y
 
-# 4. Configure PHP settings consistently across all interfaces
-print_status "Configuring PHP settings..."
+# 4. Install PHP 8.4 and other Dependencies
+print_status "Installing PHP 8.4 and dependencies..."
+apt install -y software-properties-common
+add-apt-repository -y ppa:ondrej/php
+apt update -y
+
+# Install PHP 8.4 with all required extensions
+apt install -y php8.4 php8.4-{bz2,gd,mysql,curl,zip,mbstring,imagick,bcmath,xml,intl,gmp,apcu,cli,common,fpm,redis,sqlite3} \
+    libapache2-mod-php8.4 zip unzip wget
+
+# 5. Configure PHP settings consistently across all interfaces
+print_status "Configuring PHP 8.4 settings..."
 if [ -f "scripts/configure-php.sh" ]; then
     bash scripts/configure-php.sh
 else
     print_error "PHP configuration script not found at scripts/configure-php.sh"
 fi
-
-# Install additional PHP modules
-apt install -y php8.4-apcu php8.4-bcmath php8.4-cli php8.4-common php8.4-curl php8.4-gd \
-    php8.4-gmp php8.4-imagick php8.4-intl php8.4-mbstring php8.4-mysql php8.4-zip php8.4-xml
 
 # 4. Enable required Apache modules and restart Apache
 print_status "Enabling Apache modules..."
@@ -135,17 +141,17 @@ fi
 print_section "Step 5: Configuring PHP-FPM"
 
 # 1. Install php-fpm
-print_status "Installing PHP-FPM..."
+print_status "Installing PHP 8.4 FPM..."
 apt install -y php8.4-fpm
 
 # 2. Configure Apache to use PHP-FPM
-print_status "Configuring Apache to use PHP-FPM..."
+print_status "Configuring Apache to use PHP 8.4 FPM..."
 a2dismod php8.4 mpm_prefork
 a2enmod mpm_event proxy_fcgi setenvif
 a2enconf php8.4-fpm
 
 # 3. Set required php.ini variables
-print_status "Configuring PHP settings..."
+print_status "Configuring PHP 8.4 settings..."
 cat > /etc/php/8.4/fpm/conf.d/nextcloud.ini << 'EOL'
 upload_max_filesize = 64M
 post_max_size = 96M
@@ -357,7 +363,7 @@ sudo -u www-data php /var/www/nextcloud/occ maintenance:data-fingerprint
 
 sudo apt update
 sudo apt install -y libmagickcore-6.q16-6-extra librsvg2-bin
-sudo apt install -y php-imagick
+sudo apt install -y php8.4-imagick
 sudo systemctl restart php8.4-fpm
 sudo systemctl restart apache2
 
