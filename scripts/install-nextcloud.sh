@@ -96,13 +96,20 @@ mysql -e "FLUSH PRIVILEGES;"
 # Step3. Download and Install Nextcloud
 print_section "Step 3: Downloading and Installing Nextcloud"
 
-# 1. Download and unzip in the /var/www folder
-print_status "Downloading and extracting Nextcloud..."
-apt install -y wget unzip
-cd /var/www/
-wget -q https://download.nextcloud.com/server/releases/latest.zip
-unzip -q latest.zip
-rm -f latest.zip
+# 1. Check if Nextcloud is already installed, if not download and extract
+print_status "Checking Nextcloud installation..."
+if [ ! -d "/var/www/nextcloud" ]; then
+    cd /var/www/
+    if [ ! -f "latest.zip" ]; then
+        print_status "Downloading Nextcloud..."
+        wget -q https://download.nextcloud.com/server/releases/latest.zip
+    fi
+    print_status "Extracting Nextcloud..."
+    unzip -q latest.zip
+    rm -f latest.zip
+else
+    print_status "Nextcloud is already installed at /var/www/nextcloud"
+fi
 
 # 2. Set proper permissions
 print_status "Setting permissions..."
