@@ -874,15 +874,8 @@ systemctl restart apache2
 # Step8. Configure Nextcloud Settings
 print_status "Configuring Nextcloud settings..."
 
-# Set timezone
-print_status "Setting timezone..."
-sudo -u www-data php /var/www/nextcloud/occ config:system:set default_phone_region --value="KE"
-sudo -u www-data php /var/www/nextcloud/occ config:system:set default_timezone --value="Africa/Nairobi"
-
-# Enable APCu for local caching if available
-print_status "Configuring caching..."
-if php -m | grep -q apcu; then
-    sudo -u www-data php /var/www/nextcloud/occ config:system:set memcache.local --value="\\OC\\Memcache\\APCu"
+# Check database schema
+print_status "Checking database schema..."
 fi
 
 # Set trusted domains
@@ -907,11 +900,12 @@ chmod -R 755 /var/www/nextcloud/
 sudo apt-get install -y php8.4-sqlite3
 sudo systemctl restart apache2
 
+# Run database maintenance
+print_status "Running database maintenance..."
 sudo -u www-data php /var/www/nextcloud/occ db:add-missing-indices
-sudo -u www-data php /var/www/nextcloud/occ db:check
-sudo -u www-data php /var/www/nextcloud/occ db:schema:expected
 sudo -u www-data php /var/www/nextcloud/occ db:add-missing-columns
 sudo -u www-data php /var/www/nextcloud/occ db:add-missing-primary-keys
+sudo -u www-data php /var/www/nextcloud/occ db:convert-filecache-bigint
 sudo -u www-data php /var/www/nextcloud/occ db:convert-filecache-bigint
 sudo -u www-data php /var/www/nextcloud/occ maintenance:repair --include-expensive
 sudo -u www-data php /var/www/nextcloud/occ status
