@@ -834,18 +834,75 @@ else
             -subj "/CN=$DOMAIN_NAME"
         
         # Configure Apache to use self-signed certificate
-        cat > /etc/apache2/sites-available/nextcloud-ssl.conf << EOL
+        print_status "Configuring Apache with self-signed certificate..."
+        
+        # Create a temporary file for the SSL configuration
+        SSL_CONF_TEMP=$(mktemp)
+        
+        # Create the SSL configuration with proper formatting
+        cat > "$SSL_CONF_TEMP" << EOL
 <IfModule mod_ssl.c>
-    <VirtualHost *:443>
-        ServerName $DOMAIN_NAME
-        DocumentRoot /var/www/nextcloud/
+<VirtualHost *:443>
+    ServerName $DOMAIN_NAME
+    ServerAdmin webmaster@localhost
+    DocumentRoot /var/www/nextcloud
+
+    <Directory /var/www/nextcloud/>
+        Options -Indexes +FollowSymLinks
+        AllowOverride All
+        Require all granted
+    </Directory>
+
+    ErrorLog \${APACHE_LOG_DIR}/nextcloud-ssl-error.log
+    CustomLog \${APACHE_LOG_DIR}/nextcloud-ssl-access.log combined
+
+    SSLEngine on
+    SSLCertificateFile /etc/ssl/certs/nextcloud-selfsigned.crt
+    SSLCertificateKeyFile /etc/ssl/private/nextcloud-selfsigned.key
+
+    <FilesMatch "\\.(cgi|s?html?|jpe?g|png|gif|ico|svg|woff2?|ttf|eot)$">
+        SSLOptions +StdEnvVars
+    </FilesMatch>
+
+    <Directory /usr/lib/cgi-bin>
+        SSLOptions +StdEnvVars
+    </Directory>
+
+    BrowserMatch "MSIE [2-6]" \\
+        nokeepalive ssl-unclean-shutdown \\
+        downgrade-1.0 force-response-1.0
+    BrowserMatch "MSIE [17-9]" ssl-unclean-shutdown
+</VirtualHost>
+</IfModule>
+EOL
+
+        # Move the temporary file to the final location
+        if ! mv "$SSL_CONF_TEMP" /etc/apache2/sites-available/nextcloud-ssl.conf; then
+            print_error "Failed to create SSL configuration"
+            exit 1
+        fi
         
-        SSLEngine on
-        SSLCertificateFile /etc/ssl/certs/nextcloud-selfsigned.crt
-        SSLCertificateKeyFile /etc/ssl/private/nextcloud-selfsigned.key
+        # Set proper permissions
+        chmod 0644 /etc/apache2/sites-available/nextcloud-ssl.conf
         
-        # Enable HTTP/2
-        Protocols h2 h2c http/1.1
+        # Enable the site if not already enabled
+        if [ ! -f /etc/apache2/sites-enabled/nextcloud-ssl.conf ]; then
+            ln -s /etc/apache2/sites-available/nextcloud-ssl.conf /etc/apache2/sites-enabled/
+        fi
+        
+        # Test Apache configuration
+        if ! apache2ctl configtest; then
+            print_error "Apache configuration test failed. Please check the configuration."
+            exit 1
+        fi
+        
+        # Restart Apache to apply changes
+        systemctl restart apache2
+        
+        print_status "Self-signed certificate configured successfully"
+        print_status "WARNING: This is a self-signed certificate. Browsers will show security warnings."
+        print_status "For production use, obtain a valid certificate from Let's Encrypt using:"
+        print_status "  sudo certbot --apache -d $DOMAIN_NAME --non-interactive --agree-tos --email $SSL_EMAIL --redirect"
         
         # Security headers
         Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains; preload"
