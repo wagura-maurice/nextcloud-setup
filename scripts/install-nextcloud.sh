@@ -840,10 +840,10 @@ else
         SSL_CONF_TEMP=$(mktemp)
         
         # Create the SSL configuration with proper formatting
-        cat > "$SSL_CONF_TEMP" << EOL
+        cat > "$SSL_CONF_TEMP" << 'EOL'
 <IfModule mod_ssl.c>
 <VirtualHost *:443>
-    ServerName $DOMAIN_NAME
+    ServerName DOMAIN_PLACEHOLDER
     ServerAdmin webmaster@localhost
     DocumentRoot /var/www/nextcloud
 
@@ -853,14 +853,23 @@ else
         Require all granted
     </Directory>
 
-    ErrorLog \${APACHE_LOG_DIR}/nextcloud-ssl-error.log
-    CustomLog \${APACHE_LOG_DIR}/nextcloud-ssl-access.log combined
+    ErrorLog ${APACHE_LOG_DIR}/nextcloud-ssl-error.log
+    CustomLog ${APACHE_LOG_DIR}/nextcloud-ssl-access.log combined
 
     SSLEngine on
     SSLCertificateFile /etc/ssl/certs/nextcloud-selfsigned.crt
     SSLCertificateKeyFile /etc/ssl/private/nextcloud-selfsigned.key
 
-    <FilesMatch "\\.(cgi|s?html?|jpe?g|png|gif|ico|svg|woff2?|ttf|eot)$">
+    # Security headers
+    Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains; preload"
+    
+    # SSL settings
+    SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+    SSLProtocol -all +TLSv1.2 +TLSv1.3
+    SSLHonorCipherOrder off
+    SSLCompression off
+
+    <FilesMatch "\.(cgi|s?html?|jpe?g|png|gif|ico|svg|woff2?|ttf|eot)$">
         SSLOptions +StdEnvVars
     </FilesMatch>
 
@@ -868,13 +877,16 @@ else
         SSLOptions +StdEnvVars
     </Directory>
 
-    BrowserMatch "MSIE [2-6]" \\
-        nokeepalive ssl-unclean-shutdown \\
+    BrowserMatch "MSIE [2-6]" \
+        nokeepalive ssl-unclean-shutdown \
         downgrade-1.0 force-response-1.0
     BrowserMatch "MSIE [17-9]" ssl-unclean-shutdown
 </VirtualHost>
 </IfModule>
 EOL
+
+        # Replace the domain placeholder
+        sed -i "s/DOMAIN_PLACEHOLDER/$DOMAIN_NAME/g" "$SSL_CONF_TEMP"
 
         # Move the temporary file to the final location
         if ! mv "$SSL_CONF_TEMP" /etc/apache2/sites-available/nextcloud-ssl.conf; then
@@ -904,30 +916,7 @@ EOL
         print_status "For production use, obtain a valid certificate from Let's Encrypt using:"
         print_status "  sudo certbot --apache -d $DOMAIN_NAME --non-interactive --agree-tos --email $SSL_EMAIL --redirect"
         
-        # Security headers
-        Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains; preload"
-        
-        # Other SSL settings
-        SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
-        SSLProtocol -all +TLSv1.2 +TLSv1.3
-        SSLHonorCipherOrder off
-        SSLCompression off
-        
-        # Rest of your Apache configuration
-        <Directory /var/www/nextcloud/>
-            Options Indexes FollowSymLinks
-            AllowOverride All
-            Require all granted
-        </Directory>
-        
-        <FilesMatch "\\.php$\">
-            SetHandler "proxy:unix:/var/run/php/php8.4-fpm.sock|fcgi://localhost/"
-        </FilesMatch>
-        
-        ErrorLog \${APACHE_LOG_DIR}/error.log
-        CustomLog \${APACHE_LOG_DIR}/access.log combined
-    </VirtualHost>
-</IfModule>
+        # All configuration is now in the Apache config file template above
 EOL
         
         # Enable required modules and the new site
