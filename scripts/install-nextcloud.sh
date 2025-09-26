@@ -83,30 +83,94 @@ print_status "Enabling Apache modules..."
 a2enmod rewrite dir mime env headers
 systemctl restart apache2
 
-# Step2. Configure MySQL Server
-print_section "Step 2: Configuring MySQL Server"
+# Step# 2. Install MySQL and secure it
+print_status "Installing MySQL..."
+apt install -y mysql-server
 
-# 1. Create MySQL Database and User for Nextcloud
-print_status "Configuring MySQL database..."
-mysql -e "CREATE USER IF NOT EXISTS 'nextcloud'@'localhost' IDENTIFIED BY 'passw@rd';"
-mysql -e "CREATE DATABASE IF NOT EXISTS nextcloud CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
-mysql -e "GRANT ALL PRIVILEGES ON nextcloud.* TO 'nextcloud'@'localhost';"
+# Secure MySQL installation
+print_status "Securing MySQL installation..."
+# Generate a secure password for MySQL root
+MYSQL_ROOT_PASS=$(openssl rand -base64 24)
+DB_PASSWORD=$(openssl rand -base64 24)
+
+# Set up unattended mysql_secure_installation
+mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASS}';"
+mysql -e "DELETE FROM mysql.user WHERE User='';"
+mysql -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+mysql -e "DROP DATABASE IF EXISTS test;"
+mysql -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%';"
 mysql -e "FLUSH PRIVILEGES;"
+
+# Store MySQL root password securely
+cat > /root/.mysql_credentials << EOL
+# MySQL Root Credentials
+MYSQL_ROOT_USER=root
+MYSQL_ROOT_PASS=${MYSQL_ROOT_PASS}
+EOL
+chmod 600 /root/.mysql_credentials
+
+# Create database and user with secure password
+print_status "Creating database and user..."
+
+# Function to check if database exists
+database_exists() {
+    local dbname=$1
+    local result=$(mysql -u root -p"${MYSQL_ROOT_PASS}" -sN -e "SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = '${dbname}';")
+    if [ "$result" == "$dbname" ]; then
+        return 0 # exists
+    else
+        return 1 # doesn't exist
+    fi
+}
+
+# Create database if it doesn't exist
+if ! database_exists "nextcloud"; then
+    print_status "Creating database 'nextcloud'..."
+    mysql -u root -p"${MYSQL_ROOT_PASS}" -e "CREATE DATABASE nextcloud CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
+    if [ $? -ne 0 ]; then
+        print_error "Failed to create database 'nextcloud'"
+        exit 1
+    fi
+    print_status "Database 'nextcloud' created successfully."
+else
+    print_status "Database 'nextcloud' already exists."
+fi
+
+# Create user and grant privileges
+print_status "Creating database user and setting permissions..."
+mysql -u root -p"${MYSQL_ROOT_PASS}" -e "
+    CREATE USER IF NOT EXISTS 'nextcloud'@'localhost' IDENTIFIED BY '${DB_PASSWORD}';
+    GRANT ALL PRIVILEGES ON nextcloud.* TO 'nextcloud'@'localhost';
+    FLUSH PRIVILEGES;"
+
+if [ $? -ne 0 ]; then
+    print_error "Failed to create database user or set permissions"
+    exit 1
+fi
+
+# Store the database credentials securely
+print_status "Storing database credentials..."
+cat > /root/.nextcloud_db_credentials << EOL
+# Nextcloud Database Credentials
+DB_NAME=nextcloud
+DB_USER=nextcloud
+DB_PASS=${DB_PASSWORD}
+EOL
+chmod 600 /root/.nextcloud_db_credentials
 
 # Step3. Download and Install Nextcloud
 print_section "Step 3: Downloading and Installing Nextcloud"
 
 # 1. Check if Nextcloud is already installed, if not download and extract
 print_status "Checking Nextcloud installation..."
-if [ ! -d "/var/www/nextcloud" ]; then
-    cd /var/www/
-    if [ ! -f "latest.zip" ]; then
-        print_status "Downloading Nextcloud..."
-        wget -q https://download.nextcloud.com/server/releases/latest.zip
-    fi
-    print_status "Extracting Nextcloud..."
-    unzip -q latest.zip
-    rm -f latest.zip
+cd /var/www/
+if [ ! -f "latest.zip" ]; then
+    print_status "Downloading Nextcloud..."
+    wget -q https://download.nextcloud.com/server/releases/latest.zip
+fi
+print_status "Extracting Nextcloud..."
+unzip -q latest.zip
+rm -f latest.zip
 else
     print_status "Nextcloud is already installed at /var/www/nextcloud"
 fi
@@ -119,36 +183,57 @@ chown -R www-data:www-data /var/www/nextcloud/
 print_section "Step 4: Installing Nextcloud"
 
 # 1. Run the CLI Command
-print_status "Running Nextcloud installation..."
-# First check if Nextcloud is already installed
+print_status "Preparing Nextcloud installation..."
+
+# Check if Nextcloud is already installed
 if [ ! -f "/var/www/nextcloud/config/config.php" ]; then
+    print_status "Running Nextcloud installation..."
+    
+    # Source the database credentials
+    if [ -f "/root/.nextcloud_db_credentials" ]; then
+        source /root/.nextcloud_db_credentials
+    else
+        print_error "Database credentials file not found. Cannot proceed with installation."
+        exit 1
+    fi
+    
     # Run the install command with all required parameters
-    sudo -u www-data php /var/www/nextcloud/occ maintenance:install \
+    if ! sudo -u www-data php /var/www/nextcloud/occ maintenance:install \
         --database "mysql" \
         --database-host "127.0.0.1" \
-        --database-name "nextcloud" \
-        --database-user "nextcloud" \
-        --database-pass "passw@rd" \
+        --database-name "${DB_NAME}" \
+        --database-user "${DB_USER}" \
+        --database-pass "${DB_PASS}" \
         --admin-user "admin" \
-        --admin-pass "admin123"
+        --admin-pass "admin123"; then
+        print_error "Failed to install Nextcloud. Please check the error messages above."
+        exit 1
+    fi
+    
+    print_status "Nextcloud installed successfully!"
+    
+    # Additional security hardening
+    print_status "Applying security settings..."
+    sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_domains 1 --value="$(hostname -f)"
+    sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_domains 2 --value="data.amarissolutions.com"
+    sudo -u www-data php /var/www/nextcloud/occ config:system:set default_phone_region --value="KE"
+    sudo -u www-data php /var/www/nextcloud/occ config:system:set default_timezone --value="Africa/Nairobi"
+    
+    # Enable APCu if available
+    print_status "Configuring APCu..."
+    if php -m | grep -q apcu; then
+        sudo -u www-data php /var/www/nextcloud/occ config:system:set memcache.local --value="\\OC\\Memcache\\APCu"
+        print_status "APCu enabled and configured for local caching."
+    else
+        print_status "APCu extension not found. Local caching will use file-based cache."
+    fi
+    
+    print_status "Security settings applied successfully!"
 else
     print_status "Nextcloud is already installed. Skipping installation."
 fi
 
-# 2. Configure trusted domains
-print_status "Configuring trusted domains..."
-mkdir -p /var/www/nextcloud/config
-if ! grep -q "trusted_domains" /var/www/nextcloud/config/config.php 2>/dev/null; then
-    echo -e "<?php\n\n\$CONFIG = array ();" > /var/www/nextcloud/config/config.php
-fi
-
-# Add trusted domain if not already present
-if ! grep -q "'data.amarissolutions.com'" /var/www/nextcloud/config/config.php; then
-    sed -i "/'trusted_domains' =>/{
-    n
-    a\    1 => 'data.amarissolutions.com',
-    }" /var/www/nextcloud/config/config.php
-fi
+print_status "Trusted domains configuration complete."
 
 # Step5. Install and Configure PHP-FPM with Apache
 print_section "Step 5: Configuring PHP-FPM"
@@ -186,16 +271,15 @@ opcache.save_comments=1
 opcache.revalidate_freq=60
 
 ; Disable deprecated mbstring functions
-mbstring.http_input = ""
-mbstring.http_output = ""
-mbstring.internal_encoding = ""
+; These are now handled in the main php.ini file
+
+; APCu configuration
+apc.enable_cli=1
 
 ; SQLite3 configuration
 ; Check if SQLite3 is already loaded before loading it again
 ; This prevents the 'Module already loaded' warning
-if (!extension_loaded('sqlite3')) {
-    extension=sqlite3.so
-}
+; extension=sqlite3.so
 EOL
 
 # 4. php-fpm pool Configurations
@@ -371,23 +455,37 @@ print_status "Restarting Apache..."
 systemctl restart apache2
 
 # Step8. Configure Nextcloud Settings
-print_section "Step 8: Configuring Nextcloud Settings"
+print_status "Configuring Nextcloud settings..."
 
-# 1. Set timezone
+# Set timezone
 print_status "Setting timezone..."
+sudo -u www-data php /var/www/nextcloud/occ config:system:set default_phone_region --value="KE"
+sudo -u www-data php /var/www/nextcloud/occ config:system:set default_timezone --value="Africa/Nairobi"
 
-# 2. Update .htaccess file
-echo "Updating .htaccess file..."
-sudo -u www-data php -define apc.enable_cli=1 /var/www/nextcloud/occ maintenance:update:htaccess
+# Enable APCu for local caching if available
+print_status "Configuring caching..."
+if php -m | grep -q apcu; then
+    sudo -u www-data php /var/www/nextcloud/occ config:system:set memcache.local --value="\\OC\\Memcache\\APCu"
+fi
 
-# Step10. Final Nextcloud Tweaks
+# Set trusted domains
+print_status "Setting trusted domains..."
+CURRENT_DOMAIN=$(hostname -f)
+sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_domains 1 --value="${CURRENT_DOMAIN}"
+sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_domains 2 --value="data.amarissolutions.com"
 
-echo "Applying final tweaks..."
-sudo -u www-data php /var/www/nextcloud/occ background:cron
-sudo -u www-data php /var/www/nextcloud/occ config:system:set timezone --value="Africa/Nairobi"
-sudo -u www-data php /var/www/nextcloud/occ config:system:set maintenance_window_start --type=integer --value=1
-sudo -u www-data php -f /var/www/nextcloud/cron.php
-sudo -u www-data php /var/www/nextcloud/occ background:job:list
+# Enable pretty URLs
+print_status "Enabling pretty URLs..."
+sudo -u www-data php /var/www/nextcloud/occ config:system:set htaccess.RewriteBase --value="/"
+
+# Update .htaccess file
+print_status "Updating .htaccess file..."
+sudo -u www-data php /var/www/nextcloud/occ maintenance:update:htaccess
+
+# Set proper permissions
+print_status "Setting proper permissions..."
+chown -R www-data:www-data /var/www/nextcloud/
+chmod -R 755 /var/www/nextcloud/
 
 sudo apt-get install -y php8.4-sqlite3
 sudo systemctl restart apache2
