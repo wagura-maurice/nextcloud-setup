@@ -69,8 +69,8 @@ nextcloud-setup/
    > **Note**: The staging certificate will trigger browser security warnings. 
    > To switch to production later, run:
    > ```bash
-   > sudo certbot delete --cert-name data.amarissolutions.com
-   > sudo certbot --apache --non-interactive --agree-tos --email wagura465@gmail.com -d data.amarissolutions.com --redirect
+   > sudo certbot delete --cert-name cloud.amarissolutions.com
+   > sudo certbot --apache --non-interactive --agree-tos --email wagura465@gmail.com -d cloud.amarissolutions.com --redirect
    > ```
 
    The script will guide you through the installation process and automatically:
@@ -84,7 +84,7 @@ nextcloud-setup/
 4. **Access Your Nextcloud**
    After installation, access your Nextcloud instance at:
    ```
-   https://data.amarissolutions.com
+   https://cloud.amarissolutions.com
    ```
    Use the admin credentials provided during installation.
 
