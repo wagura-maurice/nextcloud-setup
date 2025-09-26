@@ -166,6 +166,11 @@ opcache.max_accelerated_files=10000
 opcache.memory_consumption=128
 opcache.save_comments=1
 opcache.revalidate_freq=60
+
+; Remove deprecated mbstring settings
+mbstring.http_input =
+mbstring.http_output =
+mbstring.internal_encoding =
 EOL
 
 # 4. php-fpm pool Configurations
@@ -247,17 +252,34 @@ systemctl restart redis-server
 
 # 3. Configure Nextcloud to use Redis
 print_status "Configuring Nextcloud to use Redis..."
-if ! grep -q "'memcache.local'" /var/www/nextcloud/config/config.php; then
-    sed -i "/);/i \\
-  'memcache.local' => '\\OC\\Memcache\\APCu',
-  'memcache.distributed' => '\\OC\\Memcache\\Redis',
+if [ -f "/var/www/nextcloud/config/config.php" ]; then
+    if ! grep -q "'memcache.local'" /var/www/nextcloud/config/config.php; then
+        # Create a temporary file for the Redis configuration
+        REDIS_CONFIG="$(mktemp)"
+        cat > "$REDIS_CONFIG" << 'REDIS_EOF'
+  'memcache.local' => '\OC\Memcache\Redis',
+  'memcache.distributed' => '\OC\Memcache\Redis',
   'redis' => [
     'host' => '/var/run/redis/redis.sock',
     'port' => 0,
     'dbindex' => 0,
     'password' => '',
     'timeout' => 1.5,
-  ]," /var/www/nextcloud/config/config.php
+  ],
+REDIS_EOF
+        
+        # Insert the Redis configuration before the closing );
+        sed -i "/);/ {
+            x
+            r $REDIS_CONFIG
+            x
+        }" /var/www/nextcloud/config/config.php
+        
+        # Clean up the temporary file
+        rm -f "$REDIS_CONFIG"
+    fi
+else
+    print_error "Nextcloud config.php not found at /var/www/nextcloud/config/config.php"
 fi
 
 # 4. Enable Redis session locking
