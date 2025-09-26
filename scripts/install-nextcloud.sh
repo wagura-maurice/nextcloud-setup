@@ -35,8 +35,31 @@ print_status() {
 
 # Function to print error messages
 print_error() {
-    echo -e "\033[1;31m[!] ERROR: $1\033[0m"
-    exit 1
+    echo -e "\e[31m[!] $1\e[0m"
+}
+
+# Function to check if a package is installed
+is_package_installed() {
+    dpkg -l "$1" &> /dev/null
+    return $?
+}
+
+# Function to check if a service is running
+is_service_running() {
+    systemctl is-active --quiet "$1"
+    return $?
+}
+
+# Function to check if a module is enabled in Apache
+is_apache_module_enabled() {
+    a2query -q -m "$1"
+    return $?
+}
+
+# Function to check if a site is enabled in Apache
+is_apache_site_enabled() {
+    a2query -q -s "$1"
+    return $?
 }
 
 # Check if running as root
@@ -47,17 +70,47 @@ fi
 # Step1: Install Required Packages
 print_section "Step 1: Installing Required Packages"
 
-# 1. Update and Upgrade the Ubuntu Packages
-print_status "Updating and upgrading system packages..."
-apt update -y && apt upgrade -y
+# 1. Update package lists
+print_status "Updating package lists..."
+apt update -y
 
-# 2. Install Apache and MySQL Server
-print_status "Installing Apache and MySQL Server..."
-apt install -y apache2 mariadb-server
+# 2. Install required packages if not already installed
+print_status "Checking and installing required packages..."
 
-# 3. Add PHP 8.4 repository and update
-print_status "Adding PHP 8.4 repository and updating..."
-add-apt-repository -y ppa:ondrej/php
+# List of required packages
+REQUIRED_PACKAGES=(
+    apache2 
+    mariadb-server 
+    php8.4 
+    php8.4-{cli,gd,common,mysql,curl,mbstring,xml,zip,json,intl,ldap,imagick,gmp,bcmath,opcache,redis,apcu}
+    libapache2-mod-php8.4 
+    php-fpm 
+    unzip 
+    wget 
+    curl 
+    git 
+    redis-server 
+    php-redis 
+    python3-certbot-apache
+)
+
+# Install packages that are not already installed
+TO_INSTALL=()
+for pkg in "${REQUIRED_PACKAGES[@]}"; do
+    if ! is_package_installed "$pkg"; then
+        TO_INSTALL+=("$pkg")
+    else
+        print_status "Package already installed: $pkg"
+    fi
+done
+
+if [ ${#TO_INSTALL[@]} -gt 0 ]; then
+    print_status "Installing missing packages: ${TO_INSTALL[*]}"
+    apt install -y "${TO_INSTALL[@]}"
+else
+    print_status "All required packages are already installed."
+fi
+
 apt update -y
 
 # 4. Install PHP 8.4 and other Dependencies
@@ -79,65 +132,220 @@ else
 fi
 
 # 4. Enable required Apache modules and restart Apache
-print_status "Enabling Apache modules..."
-a2enmod rewrite dir mime env headers
-systemctl restart apache2
+print_status "Configuring Apache..."
 
-# Step# 2. Install MySQL and secure it
-print_status "Installing MySQL..."
-apt install -y mysql-server
+# List of required Apache modules
+APACHE_MODULES=(
+    rewrite
+    dir
+    mime
+    env
+    headers
+    ssl
+    http2
+)
 
-# Ensure MySQL service is running
-print_status "Starting MySQL service..."
-systemctl start mysql
-systemctl enable mysql
+# Enable required modules if not already enabled
+MODULES_TO_ENABLE=()
+for mod in "${APACHE_MODULES[@]}"; do
+    if ! is_apache_module_enabled "$mod"; then
+        MODULES_TO_ENABLE+=("$mod")
+    else
+        print_status "Apache module already enabled: $mod"
+    fi
+done
 
-# Wait for MySQL to be fully up
-sleep 5
-
-# Check if MySQL is running
-if ! systemctl is-active --quiet mysql; then
-    print_error "MySQL service failed to start. Please check the logs with: journalctl -xe"
-    exit 1
+if [ ${#MODULES_TO_ENABLE[@]} -gt 0 ]; then
+    print_status "Enabling Apache modules: ${MODULES_TO_ENABLE[*]}"
+    a2enmod "${MODULES_TO_ENABLE[@]}"
+    systemctl restart apache2
+else
+    print_status "All required Apache modules are already enabled."
 fi
 
-# Secure MySQL installation
-print_status "Securing MySQL installation..."
-# Generate a secure password for MySQL root
-MYSQL_ROOT_PASS=$(openssl rand -base64 24)
-DB_PASSWORD=$(openssl rand -base64 24)
+# Step# 2. Setup MySQL
+print_status "Checking MySQL installation..."
 
-# Set up unattended mysql_secure_installation
-print_status "Configuring MySQL security settings..."
-# First, check if we can connect without password
-if mysql -e "SELECT 1" &>/dev/null; then
-    # No root password set yet
-    mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASS}';"
-    mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DELETE FROM mysql.user WHERE User='';"
-    mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-    mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DROP DATABASE IF EXISTS test;"
-    mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%';"
-    mysql -u root -p"${MYSQL_ROOT_PASS}" -e "FLUSH PRIVILEGES;"
+# Default credentials
+MYSQL_ROOT_PASS="Qwerty123!"
+DB_PASSWORD="passw@rd"
+DB_NAME="nextcloud"
+DB_USER="nextcloud"
+
+# Check if MySQL/MariaDB is already installed
+if ! command -v mysql &> /dev/null; then
+    print_status "MySQL/MariaDB not found. Installing..."
+    
+    # Set debconf selections for unattended installation
+    echo "mariadb-server mysql-server/root_password password $MYSQL_ROOT_PASS" | debconf-set-selections
+    echo "mariadb-server mysql-server/root_password_again password $MYSQL_ROOT_PASS" | debconf-set-selections
+    
+    # Install MariaDB Server
+    apt-get install -y mariadb-server
+    
+    # Start and enable MariaDB service
+    systemctl start mariadb
+    systemctl enable mariadb
+    
+    # Wait for MariaDB to be fully up
+    sleep 5
+    
+    # Run mysql_secure_installation
+    print_status "Securing MySQL installation..."
+    mysql -u root -p"$MYSQL_ROOT_PASS" <<-EOF
+        DELETE FROM mysql.user WHERE User='';
+        DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+        DROP DATABASE IF EXISTS test;
+        DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+        FLUSH PRIVILEGES;
+EOF
 else
-    # Root password is already set, try to connect with empty password
-    if mysql -u root -p"" -e "SELECT 1" &>/dev/null; then
-        mysql -u root -p"" -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASS}';"
-        mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DELETE FROM mysql.user WHERE User='';"
-        mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-        mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DROP DATABASE IF EXISTS test;"
-        mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%';"
-        mysql -u root -p"${MYSQL_ROOT_PASS}" -e "FLUSH PRIVILEGES;"
-    else
-        print_error "Cannot connect to MySQL. Please check if MySQL is running and accessible."
-        exit 1
+    print_status "MySQL/MariaDB is already installed."
+    
+    # Check if we can connect with default root password
+    if ! mysql -u root -p"$MYSQL_ROOT_PASS" -e "SELECT 1" &>/dev/null; then
+        print_status "Could not connect with default root password. Please enter MySQL root password:"
+        read -s MYSQL_ROOT_PASS
+        
+        # Test the provided password
+        if ! mysql -u root -p"$MYSQL_ROOT_PASS" -e "SELECT 1" &>/dev/null; then
+            print_error "Failed to connect to MySQL. Please check your root password and try again."
+            exit 1
+        fi
     fi
 fi
+
+# Check if database exists
+if ! mysql -u root -p"$MYSQL_ROOT_PASS" -e "USE $DB_NAME" &>/dev/null; then
+    print_status "Creating database $DB_NAME..."
+    mysql -u root -p"$MYSQL_ROOT_PASS" -e "CREATE DATABASE IF NOT EXISTS $DB_NAME CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
+else
+    print_status "Database $DB_NAME already exists."
+fi
+
+# Check if user exists
+if ! mysql -u root -p"$MYSQL_ROOT_PASS" -e "SELECT 1 FROM mysql.user WHERE user = '$DB_USER'" | grep -q 1; then
+    print_status "Creating MySQL user $DB_USER..."
+    mysql -u root -p"$MYSQL_ROOT_PASS" -e "CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';"
+    mysql -u root -p"$MYSQL_ROOT_PASS" -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';"
+    mysql -u root -p"$MYSQL_ROOT_PASS" -e "FLUSH PRIVILEGES;"
+else
+    print_status "MySQL user $DB_USER already exists. Updating password..."
+    mysql -u root -p"$MYSQL_ROOT_PASS" -e "ALTER USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';"
+    mysql -u root -p"$MYSQL_ROOT_PASS" -e "GRANT ALL PRIVILEGES ON $DB_NAME.* TO '$DB_USER'@'localhost';"
+    mysql -u root -p"$MYSQL_ROOT_PASS" -e "FLUSH PRIVILEGES;"
+fi
+
+# Store MySQL credentials securely
+print_status "Storing MySQL credentials securely..."
+cat > /root/.nextcloud_db_credentials << EOL
+# MySQL Root Credentials
+MYSQL_ROOT_USER=root
+MYSQL_ROOT_PASS=$MYSQL_ROOT_PASS
+
+# Nextcloud Database Credentials
+DB_NAME=$DB_NAME
+DB_USER=$DB_USER
+DB_PASS=$DB_PASSWORD
+EOL
+chmod 600 /root/.nextcloud_db_credentials
+
+# Function to check MySQL connection
+check_mysql_connection() {
+    mysql -u "$1" -p"$2" -e "SELECT 1" &>/dev/null
+    return $?
+}
+
+# Function to execute MySQL command with proper credentials
+execute_mysql() {
+    if [ "$1" == "root" ]; then
+        mysql -u root -p"$MYSQL_ROOT_PASS" -e "$2"
+    else
+        mysql -u "$DB_USER" -p"$DB_PASSWORD" -e "$2"
+    fi
+}
+
+# Check if MySQL is installed
+if ! command -v mysql &> /dev/null; then
+    print_status "MySQL not found. Installing MySQL..."
+    
+    # Set debconf selections for unattended installation
+    echo "mysql-server mysql-server/root_password password $MYSQL_ROOT_PASS" | debconf-set-selections
+    echo "mysql-server mysql-server/root_password_again password $MYSQL_ROOT_PASS" | debconf-set-selections
+    
+    # Install MySQL Server
+    apt update
+    DEBIAN_FRONTEND=noninteractive apt install -y mysql-server
+    
+    # Start and enable MySQL service
+    systemctl start mysql
+    systemctl enable mysql
+    
+    # Wait for MySQL to be fully up
+    sleep 5
+    
+    # Basic security setup
+    print_status "Performing initial MySQL security setup..."
+    mysql -u root -p"$MYSQL_ROOT_PASS" -e "
+        DELETE FROM mysql.user WHERE User='';
+        DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+        DROP DATABASE IF EXISTS test;
+        DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%';
+        FLUSH PRIVILEGES;"
+else
+    print_status "MySQL is already installed."
+    
+    # Check if we can connect with default root password
+    if ! check_mysql_connection "root" "$MYSQL_ROOT_PASS"; then
+        print_status "Could not connect with default root password. Please enter MySQL root password:"
+        read -s MYSQL_ROOT_PASS
+        
+        # Test the provided password
+        if ! check_mysql_connection "root" "$MYSQL_ROOT_PASS"; then
+            print_error "Failed to connect to MySQL. Please check your root password and try again."
+            exit 1
+        fi
+    fi
+fi
+
+# Ensure the nextcloud database exists
+print_status "Setting up Nextcloud database..."
+mysql -u root -p"$MYSQL_ROOT_PASS" -e "
+    CREATE DATABASE IF NOT EXISTS $DB_NAME CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;"
+
+# Check if nextcloud user exists and update or create it
+print_status "Configuring Nextcloud database user..."
+USER_EXISTS=$(mysql -u root -p"$MYSQL_ROOT_PASS" -sN -e "SELECT EXISTS(SELECT 1 FROM mysql.user WHERE User = '$DB_USER' AND Host = 'localhost');")
+
+if [ "$USER_EXISTS" -eq 1 ]; then
+    print_status "Updating existing Nextcloud user password..."
+    mysql -u root -p"$MYSQL_ROOT_PASS" -e "
+        ALTER USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
+        FLUSH PRIVILEGES;"
+else
+    print_status "Creating Nextcloud database user..."
+    mysql -u root -p"$MYSQL_ROOT_PASS" -e "
+        CREATE USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
+        FLUSH PRIVILEGES;"
+fi
+
+# Grant necessary privileges (not all privileges)
+print_status "Setting up database permissions..."
+mysql -u root -p"$MYSQL_ROOT_PASS" -e "
+    GRANT CREATE, ALTER, DROP, INSERT, UPDATE, DELETE, SELECT, INDEX, REFERENCES 
+    ON $DB_NAME.* TO '$DB_USER'@'localhost';
+    FLUSH PRIVILEGES;"
 
 # Store MySQL root password securely
 cat > /root/.mysql_credentials << EOL
 # MySQL Root Credentials
 MYSQL_ROOT_USER=root
-MYSQL_ROOT_PASS=${MYSQL_ROOT_PASS}
+MYSQL_ROOT_PASS=$MYSQL_ROOT_PASS
+
+# Nextcloud Database Credentials
+DB_NAME=$DB_NAME
+DB_USER=$DB_USER
+DB_PASS=$DB_PASSWORD
 EOL
 chmod 600 /root/.mysql_credentials
 
@@ -391,8 +599,141 @@ chmod 755 /var/lib/redis
 # Restart Redis
 systemctl restart redis-server
 
-# 3. Configure Nextcloud to use Redis
-print_status "Configuring Nextcloud to use Redis..."
+# 3. Configure SSL with Let's Encrypt
+print_section "Configuring SSL"
+
+# Function to check if certificate is valid (not expired and matches domain)
+check_ssl_certificate() {
+    local domain=$1
+    local cert_file="/etc/letsencrypt/live/${domain}/fullchain.pem"
+    
+    # Check if certificate exists
+    if [ ! -f "$cert_file" ]; then
+        return 1
+    fi
+    
+    # Check if certificate is valid for at least 30 more days
+    local expiry_date=$(openssl x509 -enddate -noout -in "$cert_file" | cut -d= -f2)
+    local expiry_epoch=$(date -d "$expiry_date" +%s 2>/dev/null || date -j -f "%b %d %T %Y %Z" "$expiry_date" "+%s" 2>/dev/null)
+    local now_epoch=$(date +%s)
+    
+    # If we couldn't parse the date, assume the certificate is invalid
+    if [ -z "$expiry_epoch" ]; then
+        return 1
+    fi
+    
+    local days_until_expiry=$(( (expiry_epoch - now_epoch) / 86400 ))
+    
+    if [ $days_until_expiry -lt 30 ]; then
+        print_status "SSL certificate expires in $days_until_expiry days. Will renew."
+        return 1
+    fi
+    
+    # Check if certificate is for the correct domain
+    local cert_domains=$(openssl x509 -in "$cert_file" -text -noout | grep -o 'DNS:[^, ]*' | sed 's/DNS://g' | tr '\n' ' ')
+    if [[ " $cert_domains " != *" $domain "* ]]; then
+        print_status "Existing SSL certificate is not for domain: $domain"
+        return 1
+    fi
+    
+    print_status "Valid SSL certificate found for $domain (expires in $days_until_expiry days)"
+    return 0
+}
+
+# Check for existing valid certificate
+if check_ssl_certificate "$DOMAIN_NAME"; then
+    print_status "Using existing valid SSL certificate for $DOMAIN_NAME"
+else
+    # Install Certbot if not already installed
+    if ! command -v certbot &> /dev/null; then
+        print_status "Installing Certbot..."
+        apt install -y python3-certbot-apache
+    fi
+    
+    # Obtain new SSL certificate
+    print_status "Obtaining new SSL certificate for $DOMAIN_NAME..."
+    if certbot --apache --non-interactive --agree-tos --email "$SSL_EMAIL" -d "$DOMAIN_NAME" --redirect; then
+        print_status "Successfully obtained new SSL certificate"
+    else
+        print_error "Failed to obtain SSL certificate. Generating self-signed certificate..."
+        
+        # Create directory for self-signed certificate if it doesn't exist
+        mkdir -p /etc/ssl/private /etc/ssl/certs
+        
+        # Generate self-signed certificate
+        openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+            -keyout /etc/ssl/private/nextcloud-selfsigned.key \
+            -out /etc/ssl/certs/nextcloud-selfsigned.crt \
+            -subj "/CN=$DOMAIN_NAME"
+        
+        # Configure Apache to use self-signed certificate
+        cat > /etc/apache2/sites-available/nextcloud-ssl.conf << EOL
+<IfModule mod_ssl.c>
+    <VirtualHost *:443>
+        ServerName $DOMAIN_NAME
+        DocumentRoot /var/www/nextcloud/
+        
+        SSLEngine on
+        SSLCertificateFile /etc/ssl/certs/nextcloud-selfsigned.crt
+        SSLCertificateKeyFile /etc/ssl/private/nextcloud-selfsigned.key
+        
+        # Enable HTTP/2
+        Protocols h2 h2c http/1.1
+        
+        # Security headers
+        Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains; preload"
+        
+        # Other SSL settings
+        SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
+        SSLProtocol -all +TLSv1.2 +TLSv1.3
+        SSLHonorCipherOrder off
+        SSLCompression off
+        
+        # Rest of your Apache configuration
+        <Directory /var/www/nextcloud/>
+            Options Indexes FollowSymLinks
+            AllowOverride All
+            Require all granted
+        </Directory>
+        
+        <FilesMatch "\\.php$\">
+            SetHandler "proxy:unix:/var/run/php/php8.4-fpm.sock|fcgi://localhost/"
+        </FilesMatch>
+        
+        ErrorLog \${APACHE_LOG_DIR}/error.log
+        CustomLog \${APACHE_LOG_DIR}/access.log combined
+    </VirtualHost>
+</IfModule>
+EOL
+        
+        # Enable required modules and the new site
+        a2enmod ssl
+        a2ensite nextcloud-ssl
+    fi
+fi
+
+# Enable HTTP/2
+print_status "Enabling HTTP/2..."
+a2enmod http2 headers
+
+# Update the SSL configuration file that was created by Certbot
+SSL_CONF_FILE="/etc/apache2/sites-available/000-default-le-ssl.conf"
+if [ -f "$SSL_CONF_FILE" ]; then
+    print_status "Updating SSL configuration..."
+    # Enable HTTP/2
+    sed -i 's/Protocols h2 http\/1.1/Protocols h2 h2c http\/1.1/' "$SSL_CONF_FILE"
+    
+    # Add HSTS header if not present
+    if ! grep -q "Strict-Transport-Security" "$SSL_CONF_FILE"; then
+        sed -i '/^<\/VirtualHost>/i \    Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains; preload"' "$SSL_CONF_FILE"
+    fi
+    
+    # Restart Apache to apply changes
+    systemctl restart apache2
+fi
+
+# 4. Configure Redis for Nextcloud
+print_status "Configuring Redis for Nextcloud..."
 if [ -f "/var/www/nextcloud/config/config.php" ]; then
     if ! grep -q "'memcache.local'" /var/www/nextcloud/config/config.php; then
         # Create a temporary file for the Redis configuration
@@ -433,38 +774,6 @@ redis.session.lock_retries = -1
 redis.session.lock_wait_time = 10000
 EOL
 
-# Restart services
-print_status "Restarting services..."
-systemctl restart php8.4-fpm
-systemctl restart apache2
-
-# Step7. Install and Configure SSL with Let's Encrypt
-print_section "Step 7: Configuring SSL with Let's Encrypt"
-
-# 1. Install Certbot
-print_status "Installing Certbot..."
-apt install -y python3-certbot-apache
-
-# 2. Obtain SSL certificate
-print_status "Obtaining SSL certificate..."
-certbot --apache --non-interactive --agree-tos --email wagur465@gmail.com \
-    -d data.amarissolutions.com --redirect
-
-# 3. Enable HTTP/2
-print_status "Enabling HTTP/2..."
-a2enmod http2
-
-# Update the SSL configuration file that was created by Certbot
-if [ -f "/etc/apache2/sites-available/000-default-le-ssl.conf" ]; then
-    sed -i 's/Protocols h2 http\/1.1/Protocols h2 h2c http\/1.1/' /etc/apache2/sites-available/000-default-le-ssl.conf
-    # Also add the HTTP Strict Transport Security header
-    sed -i '/^<\/VirtualHost>/i \    Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains; preload"' /etc/apache2/sites-available/000-default-le-ssl.conf
-fi
-
-# 4. Configure HSTS (already handled in the previous step)
-print_status "HSTS configuration complete."
-
-# 5. Configure SSL parameters
 print_status "Configuring SSL parameters..."
 cat > /etc/apache2/conf-available/ssl-params.conf << 'EOL'
 SSLCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384
