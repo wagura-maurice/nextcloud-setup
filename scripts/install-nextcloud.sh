@@ -87,6 +87,20 @@ systemctl restart apache2
 print_status "Installing MySQL..."
 apt install -y mysql-server
 
+# Ensure MySQL service is running
+print_status "Starting MySQL service..."
+systemctl start mysql
+systemctl enable mysql
+
+# Wait for MySQL to be fully up
+sleep 5
+
+# Check if MySQL is running
+if ! systemctl is-active --quiet mysql; then
+    print_error "MySQL service failed to start. Please check the logs with: journalctl -xe"
+    exit 1
+fi
+
 # Secure MySQL installation
 print_status "Securing MySQL installation..."
 # Generate a secure password for MySQL root
@@ -94,12 +108,30 @@ MYSQL_ROOT_PASS=$(openssl rand -base64 24)
 DB_PASSWORD=$(openssl rand -base64 24)
 
 # Set up unattended mysql_secure_installation
-mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASS}';"
-mysql -e "DELETE FROM mysql.user WHERE User='';"
-mysql -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-mysql -e "DROP DATABASE IF EXISTS test;"
-mysql -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%';"
-mysql -e "FLUSH PRIVILEGES;"
+print_status "Configuring MySQL security settings..."
+# First, check if we can connect without password
+if mysql -e "SELECT 1" &>/dev/null; then
+    # No root password set yet
+    mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASS}';"
+    mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DELETE FROM mysql.user WHERE User='';"
+    mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+    mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DROP DATABASE IF EXISTS test;"
+    mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%';"
+    mysql -u root -p"${MYSQL_ROOT_PASS}" -e "FLUSH PRIVILEGES;"
+else
+    # Root password is already set, try to connect with empty password
+    if mysql -u root -p"" -e "SELECT 1" &>/dev/null; then
+        mysql -u root -p"" -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '${MYSQL_ROOT_PASS}';"
+        mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DELETE FROM mysql.user WHERE User='';"
+        mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+        mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DROP DATABASE IF EXISTS test;"
+        mysql -u root -p"${MYSQL_ROOT_PASS}" -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%';"
+        mysql -u root -p"${MYSQL_ROOT_PASS}" -e "FLUSH PRIVILEGES;"
+    else
+        print_error "Cannot connect to MySQL. Please check if MySQL is running and accessible."
+        exit 1
+    fi
+fi
 
 # Store MySQL root password securely
 cat > /root/.mysql_credentials << EOL
