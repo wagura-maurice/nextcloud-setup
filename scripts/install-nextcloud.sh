@@ -1004,10 +1004,15 @@ printf "║  %-15s %-50s ║\n" "💿 Data Backup:" "/root/nextcloud-backup-data
 echo "╚════════════════════════════════════════════════════════════════════════════╝"
 echo ""
 
-# Add a line break and credit before the final border
-echo ""
+# Add a separator line before credits
+echo "╠════════════════════════════════════════════════════════════════════════════╣"
+
+# Add credits with better formatting
 echo "║"
-printf "║  %-15s %-50s ║\n" "👨‍💻 Script by:" "Wagura Maurice <wagura465@gmail.com>"
+printf "║  %-15s %-50s ║\n" "👨‍💻" "Nextcloud Deployment Script"
+printf "║  %-15s %-50s ║\n" "" "Developed by Wagura Maurice"
+printf "║  %-15s %-50s ║\n" "📧" "Contact: wagura465@gmail.com"
+printf "║  %-15s %-50s ║\n" "🌐" "GitHub: github.com/wagura-maurice"
 
 # Save the same details to a file for reference
 cat > /root/nextcloud-installation-details.txt << EOL
