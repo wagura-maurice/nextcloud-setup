@@ -148,15 +148,34 @@ add-apt-repository -y ppa:ondrej/php
 apt-get update
 apt-get install -y php8.4-fpm php8.4-{cli,common,curl,gd,intl,mbstring,mysql,soap,xml,xmlrpc,zip,redis,apcu,imagick,ldap,bcmath,gmp,opcache}
 
-# Install SVG support for Imagick
-print_status "Installing SVG support for Imagick..."
-apt-get install -y libmagickcore-6.q16-6-extra librsvg2-bin
+# Install SVG support for PHP 8.4 Imagick
+print_status "Installing SVG support for PHP 8.4 Imagick..."
+apt-get install -y \
+    libmagickcore-6.q16-6-extra \
+    librsvg2-bin \
+    imagemagick-6.q16 \
+    php8.4-imagick
 
-# Verify Imagick support
-if identify -list format | grep -q SVG; then
-    print_status "SVG support is enabled for Imagick"
+# Restart PHP-FPM to apply changes
+systemctl restart php8.4-fpm
+
+# Verify Imagick support using PHP 8.4 CLI
+if php8.4 -r "exit((extension_loaded('imagick') && (new Imagick())->queryFormats('SVG')) ? 0 : 1);"; then
+    print_status "SVG support is enabled for PHP 8.4 Imagick"
 else
-    print_error "Failed to enable SVG support for Imagick"
+    print_error "Failed to enable SVG support for PHP 8.4 Imagick"
+    print_status "Trying alternative installation method..."
+    
+    # Remove and reinstall the package
+    apt-get remove -y php8.4-imagick
+    apt-get install -y --reinstall php8.4-imagick
+    systemctl restart php8.4-fpm
+    
+    if php8.4 -r "exit((extension_loaded('imagick') && (new Imagick())->queryFormats('SVG')) ? 0 : 1);"; then
+        print_status "SVG support is now enabled for PHP 8.4 Imagick after reinstall"
+    else
+        print_error "Could not enable SVG support for PHP 8.4. Some features may be limited."
+    fi
 fi
 
 # Verify PHP installation
