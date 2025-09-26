@@ -108,7 +108,6 @@ PHP_PACKAGES=(
     php8.4-mbstring
     php8.4-xml
     php8.4-zip
-    php8.4-json
     php8.4-intl
     php8.4-ldap
     php8.4-imagick
@@ -120,6 +119,8 @@ PHP_PACKAGES=(
     libapache2-mod-php8.4
     php8.4-fpm
 )
+
+# Note: php8.4-json is included in the core php8.4 package
 
 # Install base packages that are not already installed
 TO_INSTALL=()
