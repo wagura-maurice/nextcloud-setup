@@ -142,12 +142,22 @@ else
     print_status "All required base packages are already installed."
 fi
 
-# Install PHP 8.4 packages
-print_status "Installing PHP 8.4 and extensions..."
-apt install -y "${PHP_PACKAGES[@]}" || {
-    print_error "Failed to install PHP 8.4 packages. Please check the error messages above."
-    exit 1
-}
+# Install PHP 8.4 with required extensions
+print_status "Installing PHP 8.4 and required extensions..."
+add-apt-repository -y ppa:ondrej/php
+apt-get update
+apt-get install -y php8.4-fpm php8.4-{cli,common,curl,gd,intl,mbstring,mysql,soap,xml,xmlrpc,zip,redis,apcu,imagick,ldap,bcmath,gmp,opcache}
+
+# Install SVG support for Imagick
+print_status "Installing SVG support for Imagick..."
+apt-get install -y libmagickcore-6.q16-6-extra librsvg2-bin
+
+# Verify Imagick support
+if identify -list format | grep -q SVG; then
+    print_status "SVG support is enabled for Imagick"
+else
+    print_error "Failed to enable SVG support for Imagick"
+fi
 
 # Verify PHP installation
 if ! php8.4 -v &>/dev/null; then
@@ -870,6 +880,8 @@ if [ -f "/var/www/nextcloud/config/config.php" ]; then
         cat > "$REDIS_CONFIG" << 'REDIS_EOF'
   'memcache.local' => '\OC\Memcache\Redis',
   'memcache.distributed' => '\OC\Memcache\Redis',
+  'filelocking.enabled' => true,
+  'memcache.locking' => '\OC\Memcache\Redis',
   'redis' => [
     'host' => '/var/run/redis/redis.sock',
     'port' => 0,
@@ -885,12 +897,8 @@ if [ -f "/var/www/nextcloud/config/config.php" ]; then
   'updater.check_for_background_jobs' => false,
   'updater.secret' => '',
   'updater.endpoint' => 'https://updates.nextcloud.com/updater_server/',
-  'updater.release.channel' => 'stable',
   'has_internet_connection' => false,
   'maintenance' => false,
-  'maintenance_window_start' => 0,
-  'maintenance_window_end' => 0,
-  'updater.release.channel' => 'production',
 REDIS_EOF
         
         # Insert the Redis configuration before the closing );
