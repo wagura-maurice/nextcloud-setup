@@ -53,11 +53,24 @@ nextcloud-setup/
 
 3. **Run the Installation**
 
+   For a production environment with a valid SSL certificate:
    ```bash
    # Make the script executable and run it
    chmod +x scripts/install-nextcloud.sh
-   sudo ./scripts/install-nextcloud.sh
+   sudo ./scripts/install-nextcloud.sh --ssl=production
    ```
+
+   For testing/development with a staging SSL certificate (avoids rate limits):
+   ```bash
+   sudo ./scripts/install-nextcloud.sh --ssl=staging
+   ```
+
+   > **Note**: The staging certificate will trigger browser security warnings. 
+   > To switch to production later, run:
+   > ```bash
+   > sudo certbot delete --cert-name yourdomain.com
+   > sudo certbot --apache --non-interactive --agree-tos --email your@email.com -d yourdomain.com --redirect
+   > ```
 
    The script will guide you through the installation process and automatically:
 
