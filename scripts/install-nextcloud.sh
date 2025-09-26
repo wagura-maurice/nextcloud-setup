@@ -544,6 +544,15 @@ if [ ! -f "/var/www/nextcloud/config/config.php" ]; then
         print_status "APCu extension not found. Local caching will use file-based cache."
     fi
     
+    # Set maintenance window
+    print_status "Configuring maintenance window..."
+    sudo -u www-data php /var/www/nextcloud/occ config:system:set maintenance_window_start --type=integer --value=1
+    
+    # Add maintenance window to config.php if not present
+    if ! grep -q "'maintenance_window_start'" /var/www/nextcloud/config/config.php; then
+        sed -i "/);/i \    'maintenance_window_start' => 1," /var/www/nextcloud/config/config.php
+    fi
+    
     print_status "Security settings applied successfully!"
 else
     print_status "Nextcloud is already installed. Skipping installation."
@@ -808,7 +817,51 @@ if [ -f "$SSL_CONF_FILE" ]; then
     systemctl restart apache2
 fi
 
-# 4. Configure Redis for Nextcloud
+# 4. Configure cron jobs for Nextcloud
+print_status "Setting up Nextcloud cron jobs..."
+
+# Set up www-data crontab
+print_status "Configuring www-data crontab..."
+if ! sudo -u www-data crontab -l | grep -q "cron.php"; then
+    (sudo -u www-data crontab -l 2>/dev/null; echo "*/5 * * * * php -f /var/www/nextcloud/cron.php") | sudo -u www-data crontab -
+    print_status "Cron job for Nextcloud added to www-data's crontab."
+else
+    print_status "Cron job for Nextcloud already exists in www-data's crontab."
+fi
+
+# Create systemd service and timer for Nextcloud cron
+print_status "Setting up systemd service for Nextcloud cron..."
+cat > /etc/systemd/system/nextcloudcron.service << 'EOL'
+[Unit]
+Description=Nextcloud cron.php job
+
+[Service]
+User=root
+ExecCondition=php -f /var/www/nextcloud/occ status -e
+ExecStart=/usr/bin/php -f /var/www/nextcloud/cron.php
+KillMode=process
+EOL
+
+cat > /etc/systemd/system/nextcloudcron.timer << 'EOL'
+[Unit]
+Description=Run Nextcloud cron.php every 5 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+Unit=nextcloudcron.service
+
+[Install]
+WantedBy=timers.target
+EOL
+
+# Reload systemd and enable/start the timer
+systemctl daemon-reload
+systemctl enable nextcloudcron.timer
+systemctl start nextcloudcron.timer
+systemctl status nextcloudcron.timer
+
+# 5. Configure Redis for Nextcloud
 print_status "Configuring Redis for Nextcloud..."
 if [ -f "/var/www/nextcloud/config/config.php" ]; then
     if ! grep -q "'memcache.local'" /var/www/nextcloud/config/config.php; then
