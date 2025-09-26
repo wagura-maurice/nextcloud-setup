@@ -334,17 +334,19 @@ print_status "Obtaining SSL certificate..."
 certbot --apache --non-interactive --agree-tos --email wagur465@gmail.com \
     -d data.amarissolutions.com --redirect
 
-# 3. Configure HTTP/2
+# 3. Enable HTTP/2
 print_status "Enabling HTTP/2..."
 a2enmod http2
-sed -i '/<VirtualHost \*:443>/a\        Protocols h2 http/1.1' \
-    /etc/apache2/sites-available/nextcloud-le-ssl.conf
 
-# 4. Configure HSTS
-print_status "Configuring HSTS..."
-grep -q "Strict-Transport-Security" /etc/apache2/sites-available/nextcloud-le-ssl.conf || \
-sed -i '/<\/VirtualHost>/i \
-    <IfModule mod_headers.c>\n        Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains; preload"\n    </IfModule>' /etc/apache2/sites-available/nextcloud-le-ssl.conf
+# Update the SSL configuration file that was created by Certbot
+if [ -f "/etc/apache2/sites-available/000-default-le-ssl.conf" ]; then
+    sed -i 's/Protocols h2 http\/1.1/Protocols h2 h2c http\/1.1/' /etc/apache2/sites-available/000-default-le-ssl.conf
+    # Also add the HTTP Strict Transport Security header
+    sed -i '/^<\/VirtualHost>/i \    Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains; preload"' /etc/apache2/sites-available/000-default-le-ssl.conf
+fi
+
+# 4. Configure HSTS (already handled in the previous step)
+print_status "HSTS configuration complete."
 
 # 5. Configure SSL parameters
 print_status "Configuring SSL parameters..."
