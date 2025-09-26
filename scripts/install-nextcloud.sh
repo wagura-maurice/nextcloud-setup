@@ -935,9 +935,18 @@ if [ -f "$SSL_CONF_FILE" ]; then
     # Enable HTTP/2
     sed -i 's/Protocols h2 http\/1.1/Protocols h2 h2c http\/1.1/' "$SSL_CONF_FILE"
     
-    # Add HSTS header if not present
-    if ! grep -q "Strict-Transport-Security" "$SSL_CONF_FILE"; then
-        sed -i '/^<\/VirtualHost>/i \    Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains; preload"' "$SSL_CONF_FILE"
+    # Add HSTS header only in production mode
+    if [[ "$SSL_MODE" == "production" ]]; then
+        if ! grep -q "Strict-Transport-Security" "$SSL_CONF_FILE"; then
+            print_status "Setting HSTS header for production SSL..."
+            sed -i '/^<\/VirtualHost>/i \    Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains; preload"' "$SSL_CONF_FILE"
+        fi
+    else
+        # Remove HSTS header if present in staging/self-signed mode
+        if grep -q "Strict-Transport-Security" "$SSL_CONF_FILE"; then
+            print_status "Removing HSTS header for staging/self-signed certificate..."
+            sed -i '/Strict-Transport-Security/d' "$SSL_CONF_FILE"
+        fi
     fi
     
     # Restart Apache to apply changes
