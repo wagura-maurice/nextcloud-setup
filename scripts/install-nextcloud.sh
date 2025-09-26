@@ -18,6 +18,32 @@ source "$CONFIG_DIR/install-config.conf" 2>/dev/null || {
 
 echo "Starting Nextcloud installation from $BASE_DIR..."
 
+# Set default SSL mode to production
+SSL_MODE="production"
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --ssl=*)
+            SSL_MODE="${1#*=}"
+            shift
+            ;;
+        --ssl)
+            SSL_MODE="$2"
+            shift 2
+            ;;
+        *)
+            shift
+            ;;
+    esac
+done
+
+# Validate SSL mode
+if [[ "$SSL_MODE" != "production" && "$SSL_MODE" != "staging" ]]; then
+    print_error "Invalid SSL mode: $SSL_MODE. Use --ssl=production or --ssl=staging"
+    exit 1
+fi
+
 # Function to check if a command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1
@@ -780,11 +806,23 @@ else
     fi
     
     # Obtain new SSL certificate
-    print_status "Obtaining new SSL certificate for $DOMAIN_NAME..."
-    if certbot --apache --non-interactive --agree-tos --email "$SSL_EMAIL" -d "$DOMAIN_NAME" --redirect; then
-        print_status "Successfully obtained new SSL certificate"
+    if [[ "$SSL_MODE" == "staging" ]]; then
+        print_status "Obtaining new SSL certificate for $DOMAIN_NAME (using Let's Encrypt STAGING environment)..."
+        CERTBOT_CMD="certbot --apache --non-interactive --agree-tos --staging --test-cert"
     else
-        print_error "Failed to obtain SSL certificate. Generating self-signed certificate..."
+        print_status "Obtaining new SSL certificate for $DOMAIN_NAME (using Let's Encrypt PRODUCTION environment)..."
+        CERTBOT_CMD="certbot --apache --non-interactive --agree-tos"
+    fi
+    
+    if $CERTBOT_CMD --email "$SSL_EMAIL" -d "$DOMAIN_NAME" --redirect; then
+        if [[ "$SSL_MODE" == "staging" ]]; then
+            print_status "Successfully obtained STAGING SSL certificate"
+            print_status "Note: This is a staging certificate. Replace with a production certificate when ready."
+        else
+            print_status "Successfully obtained PRODUCTION SSL certificate"
+        fi
+    else
+        print_error "Failed to obtain staging SSL certificate. Generating self-signed certificate..."
         
         # Create directory for self-signed certificate if it doesn't exist
         mkdir -p /etc/ssl/private /etc/ssl/certs
