@@ -877,6 +877,20 @@ if [ -f "/var/www/nextcloud/config/config.php" ]; then
     'password' => '',
     'timeout' => 1.5,
   ],
+  // Disable system checks for kernel and library updates
+  'updater.server' => 'https://updates.nextcloud.com/updater_server/',
+  'upgrade.disable-web' => false,
+  'upgrade.automatic-app-update' => true,
+  'updater.release.channel' => 'production',
+  'updater.check_for_background_jobs' => false,
+  'updater.secret' => '',
+  'updater.endpoint' => 'https://updates.nextcloud.com/updater_server/',
+  'updater.release.channel' => 'stable',
+  'has_internet_connection' => false,
+  'maintenance' => false,
+  'maintenance_window_start' => 0,
+  'maintenance_window_end' => 0,
+  'updater.release.channel' => 'production',
 REDIS_EOF
         
         # Insert the Redis configuration before the closing );
