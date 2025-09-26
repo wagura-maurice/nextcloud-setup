@@ -969,23 +969,49 @@ mkdir -p /root/nextcloud-backups
 cp -r /var/www/nextcloud/config /root/nextcloud-backup-config-$(date +%Y%m%d)
 cp -r /var/www/nextcloud/data /root/nextcloud-backup-data-$(date +%Y%m%d)
 
-# Final system reboot
-print_status "Installation completed successfully!"
-print_status "The system will now reboot to apply all changes..."
-print_status "After reboot, you can access your Nextcloud at: https://$(hostname -f)"
-print_status "Admin credentials: username 'admin' with the password you set during installation"
+# Save installation details with the correct domain
+NEXTCLOUD_DOMAIN="data.amarissolutions.com"
+ADMIN_USER="admin"
+ADMIN_PASS="admin123"  # This is the password set during installation
 
-# Save installation details
+# Create a more visible output for the installation details
+print_section "INSTALLATION COMPLETE"
+echo ""
+echo "╔════════════════════════════════════════════════════════════════════════════╗"
+echo "║                     NEXTCLOUD INSTALLATION DETAILS                        ║"
+echo "╠════════════════════════════════════════════════════════════════════════════╣"
+echo "║                                                                            ║"
+echo "║  🌐 Access URL:        https://$NEXTCLOUD_DOMAIN                          ║"
+echo "║  👤 Admin Username:    $ADMIN_USER                                        ║"
+echo "║  🔑 Admin Password:    $ADMIN_PASS                                        ║"
+echo "║  📅 Installation Date: $(date)                                            ║"
+echo "║  🔄 Nextcloud Version: $(sudo -u www-data php /var/www/nextcloud/occ status | \
+    grep "version" | awk '{print $3}')                                           ║"
+echo "║  💾 Config Backup:     /root/nextcloud-backup-config-$(date +%Y%m%d)      ║"
+echo "║  💿 Data Backup:       /root/nextcloud-backup-data-$(date +%Y%m%d)        ║"
+echo "║                                                                            ║"
+echo "╚════════════════════════════════════════════════════════════════════════════╝"
+echo ""
+
+# Save the same details to a file for reference
 cat > /root/nextcloud-installation-details.txt << EOL
 Nextcloud Installation Details
 =============================
 Installation Date: $(date)
 Nextcloud Version: $(sudo -u www-data php /var/www/nextcloud/occ status | grep "version" | awk '{print $3}')
-Access URL: https://$(hostname -f)
-Admin Username: admin
+Access URL: https://$NEXTCLOUD_DOMAIN
+Admin Username: $ADMIN_USER
+Admin Password: $ADMIN_PASS
 Config Backup: /root/nextcloud-backup-config-$(date +%Y%m%d)
 Data Backup: /root/nextcloud-backup-data-$(date +%Y%m%d)
+
+IMPORTANT: Keep this information secure. The admin password should be changed after first login.
 EOL
+
+# Final reboot message
+print_status "The system will now reboot to apply all changes..."
+print_status "After reboot, you can access your Nextcloud at: https://$NEXTCLOUD_DOMAIN"
+print_status "Use the admin credentials shown above to log in."
 
 read -p "Press any key to reboot or Ctrl+C to cancel..." -n1 -s
 echo ""
