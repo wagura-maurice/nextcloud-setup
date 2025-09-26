@@ -119,15 +119,21 @@ chown -R www-data:www-data /var/www/nextcloud/
 print_section "Step 4: Installing Nextcloud"
 
 # 1. Run the CLI Command
-print_status "Running Nextcloud installation..."
-sudo -u www-data php /var/www/nextcloud/occ maintenance:install \
-    --database "mysql" \
-    --database-host "127.0.0.1" \
-    --database-name "nextcloud" \
-    --database-user "nextcloud" \
-    --database-pass "passw@rd" \
-    --admin-user "admin" \
-    --admin-pass "admin123"
+print_status("Running Nextcloud installation...")
+# First check if Nextcloud is already installed
+if [ ! -f "/var/www/nextcloud/config/config.php" ]; then
+    # Run the install command with all required parameters
+    sudo -u www-data php /var/www/nextcloud/occ maintenance:install \
+        --database "mysql" \
+        --database-host "127.0.0.1" \
+        --database-name "nextcloud" \
+        --database-user "nextcloud" \
+        --database-pass "passw@rd" \
+        --admin-user "admin" \
+        --admin-pass "admin123"
+else
+    print_status "Nextcloud is already installed. Skipping installation."
+fi
 
 # 2. Configure trusted domains
 print_status "Configuring trusted domains..."
@@ -158,14 +164,19 @@ a2enmod mpm_event proxy_fcgi setenvif
 a2enconf php8.4-fpm
 
 # 3. Set required php.ini variables
-print_status "Configuring PHP 8.4 settings..."
+print_status("Configuring PHP 8.4 settings...")
 cat > /etc/php/8.4/fpm/conf.d/nextcloud.ini << 'EOL'
+; File Uploads
 upload_max_filesize = 64M
 post_max_size = 96M
+
+; Resource Limits
 memory_limit = 512M
 max_execution_time = 600
 max_input_vars = 3000
 max_input_time = 1000
+
+; OPcache Settings
 opcache.enable=1
 opcache.enable_cli=1
 opcache.interned_strings_buffer=16
@@ -174,10 +185,17 @@ opcache.memory_consumption=128
 opcache.save_comments=1
 opcache.revalidate_freq=60
 
-; Remove deprecated mbstring settings
-mbstring.http_input =
-mbstring.http_output =
-mbstring.internal_encoding =
+; Disable deprecated mbstring functions
+mbstring.http_input = ""
+mbstring.http_output = ""
+mbstring.internal_encoding = ""
+
+; SQLite3 configuration
+; Check if SQLite3 is already loaded before loading it again
+; This prevents the 'Module already loaded' warning
+if (!extension_loaded('sqlite3')) {
+    extension=sqlite3.so
+}
 EOL
 
 # 4. php-fpm pool Configurations
