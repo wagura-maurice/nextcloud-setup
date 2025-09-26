@@ -874,10 +874,6 @@ systemctl restart apache2
 # Step8. Configure Nextcloud Settings
 print_status "Configuring Nextcloud settings..."
 
-# Check database schema
-print_status "Checking database schema..."
-fi
-
 # Set trusted domains
 print_status "Setting trusted domains..."
 CURRENT_DOMAIN=$(hostname -f)
