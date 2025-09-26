@@ -857,7 +857,7 @@ EOL
 
 # Reload systemd and enable/start the timer
 systemctl daemon-reload
-systemctl enable nextcloudcron.timer
+systemctl enable --now nextcloudcron.timer
 systemctl start nextcloudcron.timer
 systemctl status nextcloudcron.timer
 
@@ -1012,7 +1012,7 @@ echo "║"
 printf "║  %-15s %-50s ║\n" "👨‍💻" "Nextcloud Deployment Script"
 printf "║  %-15s %-50s ║\n" "" "Developed by Wagura Maurice"
 printf "║  %-15s %-50s ║\n" "📧" "Contact: wagura465@gmail.com"
-printf "║  %-15s %-50s ║\n" "🌐" "GitHub: github.com/wagura-maurice"
+printf "║  %-15s %-50s ║\n" "🌐" "GitHub: github.com/wagura-maurice/nextcloud-setup"
 
 # Save the same details to a file for reference
 cat > /root/nextcloud-installation-details.txt << EOL
