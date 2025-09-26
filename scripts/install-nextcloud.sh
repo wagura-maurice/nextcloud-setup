@@ -119,7 +119,7 @@ chown -R www-data:www-data /var/www/nextcloud/
 print_section "Step 4: Installing Nextcloud"
 
 # 1. Run the CLI Command
-print_status("Running Nextcloud installation...")
+print_status "Running Nextcloud installation..."
 # First check if Nextcloud is already installed
 if [ ! -f "/var/www/nextcloud/config/config.php" ]; then
     # Run the install command with all required parameters
