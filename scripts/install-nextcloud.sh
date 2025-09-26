@@ -598,9 +598,24 @@ apt install -y php8.4-fpm
 
 # 2. Configure Apache to use PHP-FPM
 print_status "Configuring Apache to use PHP 8.4 FPM..."
-a2dismod php8.4 mpm_prefork
+
+# Disable prefork MPM if it's enabled
+if apache2ctl -M | grep -q mpm_prefork_module; then
+    a2dismod mpm_prefork
+    print_status "Disabled mpm_prefork module"
+fi
+
+# Enable required modules
 a2enmod mpm_event proxy_fcgi setenvif
+
+# Enable PHP-FPM configuration
 a2enconf php8.4-fpm
+
+# Disable any PHP module that might conflict with PHP-FPM
+for mod in $(apache2ctl -M | grep -o 'php[0-9.]*_module'); do
+    a2dismod $mod
+    print_status "Disabled conflicting module: $mod"
+done
 
 # 3. Set required php.ini variables
 print_status "Configuring PHP 8.4 settings..."
