@@ -974,24 +974,40 @@ NEXTCLOUD_DOMAIN="data.amarissolutions.com"
 ADMIN_USER="admin"
 ADMIN_PASS="admin123"  # This is the password set during installation
 
+# Function to create a centered text line
+center_text() {
+    local text="$1"
+    local width=70
+    local padding=$(( (width - ${#text}) / 2 ))
+    printf "%*s%s%*s\n" $padding '' "$text" $padding ''
+}
+
 # Create a more visible output for the installation details
-print_section "INSTALLATION COMPLETE"
+print_section "NEXTCLOUD INSTALLATION COMPLETE"
 echo ""
 echo "╔════════════════════════════════════════════════════════════════════════════╗"
-echo "║                     NEXTCLOUD INSTALLATION DETAILS                        ║"
+echo "║$(center_text "NEXTCLOUD INSTALLATION DETAILS")║"
 echo "╠════════════════════════════════════════════════════════════════════════════╣"
-echo "║                                                                            ║"
-echo "║  🌐 Access URL:        https://$NEXTCLOUD_DOMAIN                          ║"
-echo "║  👤 Admin Username:    $ADMIN_USER                                        ║"
-echo "║  🔑 Admin Password:    $ADMIN_PASS                                        ║"
-echo "║  📅 Installation Date: $(date)                                            ║"
-echo "║  🔄 Nextcloud Version: $(sudo -u www-data php /var/www/nextcloud/occ status | \
-    grep "version" | awk '{print $3}')                                           ║"
-echo "║  💾 Config Backup:     /root/nextcloud-backup-config-$(date +%Y%m%d)      ║"
-echo "║  💿 Data Backup:       /root/nextcloud-backup-data-$(date +%Y%m%d)        ║"
-echo "║                                                                            ║"
+
+# Get Nextcloud version
+NC_VERSION=$(sudo -u www-data php /var/www/nextcloud/occ status 2>/dev/null | grep "version" | awk '{print $3}' || echo "Unknown")
+
+# Format each line with proper spacing
+printf "║  %-15s %-50s ║\n" "🌐 Access URL:" "https://$NEXTCLOUD_DOMAIN"
+printf "║  %-15s %-50s ║\n" "👤 Admin User:" "$ADMIN_USER"
+printf "║  %-15s %-50s ║\n" "🔑 Password:" "$ADMIN_PASS"
+printf "║  %-15s %-50s ║\n" "📅 Installed:" "$(date)"
+printf "║  %-15s %-50s ║\n" "🔄 Version:" "$NC_VERSION"
+printf "║  %-15s %-50s ║\n" "💾 Config Backup:" "/root/nextcloud-backup-config-$(date +%Y%m%d)"
+printf "║  %-15s %-50s ║\n" "💿 Data Backup:" "/root/nextcloud-backup-data-$(date +%Y%m%d)"
+
 echo "╚════════════════════════════════════════════════════════════════════════════╝"
 echo ""
+
+# Add a line break and credit before the final border
+echo ""
+echo "║"
+printf "║  %-15s %-50s ║\n" "👨‍💻 Script by:" "Wagura Maurice <wagura465@gmail.com>"
 
 # Save the same details to a file for reference
 cat > /root/nextcloud-installation-details.txt << EOL
@@ -1006,6 +1022,10 @@ Config Backup: /root/nextcloud-backup-config-$(date +%Y%m%d)
 Data Backup: /root/nextcloud-backup-data-$(date +%Y%m%d)
 
 IMPORTANT: Keep this information secure. The admin password should be changed after first login.
+
+---
+This installation was performed using a script created by:
+Wagura Maurice <wagura465@gmail.com>
 EOL
 
 # Final reboot message
