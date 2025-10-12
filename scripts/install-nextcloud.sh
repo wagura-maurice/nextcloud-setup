@@ -586,7 +586,7 @@ if [ ! -f "/var/www/nextcloud/config/config.php" ]; then
     # Additional security hardening
     print_status "Applying security settings..."
     sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_domains 1 --value="$(hostname -f)"
-    sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_domains 2 --value="cloud.amarissolutions.com"
+    sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_domains 2 --value="cloud.e-granary.com"
     sudo -u www-data php /var/www/nextcloud/occ config:system:set default_phone_region --value="KE"
     sudo -u www-data php /var/www/nextcloud/occ config:system:set default_timezone --value="Africa/Nairobi"
     
@@ -1079,7 +1079,7 @@ print_status "Configuring Nextcloud settings..."
 print_status "Setting trusted domains..."
 CURRENT_DOMAIN=$(hostname -f)
 sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_domains 1 --value="${CURRENT_DOMAIN}"
-sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_domains 2 --value="cloud.amarissolutions.com"
+sudo -u www-data php /var/www/nextcloud/occ config:system:set trusted_domains 2 --value="cloud.e-granary.com"
 
 # Enable pretty URLs
 print_status "Enabling pretty URLs..."
@@ -1118,7 +1118,7 @@ cp -r /var/www/nextcloud/config /root/nextcloud-backup-config-$(date +%Y%m%d)
 cp -r /var/www/nextcloud/data /root/nextcloud-backup-data-$(date +%Y%m%d)
 
 # Save installation details with the correct domain
-NEXTCLOUD_DOMAIN="cloud.amarissolutions.com"
+NEXTCLOUD_DOMAIN="cloud.e-granary.com"
 ADMIN_USER="admin"
 ADMIN_PASS="admin123"  # This is the password set during installation
 
