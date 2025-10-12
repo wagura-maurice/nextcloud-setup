@@ -538,7 +538,7 @@ if [ ! -d "nextcloud" ]; then
     if [ ! -f "latest.zip" ]; then
         print_status "Downloading Nextcloud..."
         # wget -q https://download.nextcloud.com/server/releases/latest.zip
-        wget -q https://download.nextcloud.com/server/releases/nextcloud-31.0.9.zip
+        wget -q https://download.nextcloud.com/server/releases/nextcloud-31.0.9.zip -O latest.zip
     fi
     print_status "Extracting Nextcloud..."
     unzip -q latest.zip
