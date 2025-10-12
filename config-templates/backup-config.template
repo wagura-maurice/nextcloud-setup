@@ -1,0 +1,37 @@
+# Nextcloud Backup Configuration
+# Copy this file to project_root/temp/.nextcloud_backup_config and update the values
+
+# Database Configuration
+DB_HOST="localhost"
+DB_NAME="nextcloud"
+DB_USER="nextcloud"
+DB_PASS="your_secure_password"
+
+# Backup Settings
+BACKUP_RETENTION_DAYS=30
+ENABLE_ENCRYPTION=false
+# ENCRYPTION_PASSWORD="your_encryption_password"
+
+# Cloudflare R2 Configuration (optional)
+# R2_ENABLED=false
+# R2_ACCESS_KEY_ID="your_r2_access_key"
+# R2_SECRET_ACCESS_KEY="your_r2_secret_key"
+# R2_BUCKET="your-bucket-name"
+# R2_ENDPOINT="https://your-account-id.r2.cloudflarestorage.com"
+
+# Notification Settings (optional)
+# EMAIL_NOTIFICATIONS=false
+# NOTIFICATION_EMAIL="your-email@example.com"
+# SLACK_WEBHOOK_URL=""
+
+# Paths (do not modify unless you know what you're doing)
+NEXTCLOUD_DIR="/var/www/nextcloud"
+BACKUP_DIR="$(dirname "$(dirname "$0")")/backups"
+TEMP_DIR="$(dirname "$(dirname "$0")")/temp"
+
+# Logging
+LOG_DIR="$(dirname "$(dirname "$0")")/logs"
+mkdir -p "$LOG_DIR"
+chmod 750 "$LOG_DIR"
+LOG_FILE="$LOG_DIR/nextcloud-backup-$(date +%Y%m%d).log"
+LOG_RETENTION_DAYS=30
