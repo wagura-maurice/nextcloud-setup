@@ -995,7 +995,9 @@ EOL
 systemctl daemon-reload
 systemctl enable --now nextcloudcron.timer
 systemctl start nextcloudcron.timer
-systemctl status nextcloudcron.timer
+# Run status without paging and show only the last few lines
+echo "Nextcloud cron service status:"
+systemctl status nextcloudcron.timer --no-pager --lines=5
 
 # 5. Configure Redis for Nextcloud
 print_status "Configuring Redis for Nextcloud..."
@@ -1182,8 +1184,9 @@ Wagura Maurice <wagura465@gmail.com>
 EOL
 
 # Make backup and restore scripts executable
-chmod +x /home/wagura-maurice/Documents/Projects/nextcloud-setup/scripts/backup-nextcloud.sh
-chmod +x /home/wagura-maurice/Documents/Projects/nextcloud-setup/scripts/restore-nextcloud.sh
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+chmod +x "$SCRIPT_DIR/backup-nextcloud.sh"
+chmod +x "$SCRIPT_DIR/restore-nextcloud.sh"
 
 print_status "Backup and restore scripts are now executable"
 
