@@ -1184,9 +1184,15 @@ Wagura Maurice <wagura465@gmail.com>
 EOL
 
 # Make backup and restore scripts executable
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-chmod +x "$SCRIPT_DIR/backup-nextcloud.sh"
-chmod +x "$SCRIPT_DIR/restore-nextcloud.sh"
+SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+if [ -f "$SCRIPT_DIR/backup-nextcloud.sh" ]; then
+    chmod +x "$SCRIPT_DIR/backup-nextcloud.sh"
+    chmod +x "$SCRIPT_DIR/restore-nextcloud.sh"
+    print_status "Backup and restore scripts are now executable"
+else
+    print_status "Warning: Could not find backup/restore scripts in $SCRIPT_DIR"
+    print_status "Please make sure to set the correct permissions manually"
+fi
 
 print_status "Backup and restore scripts are now executable"
 
