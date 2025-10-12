@@ -14,7 +14,7 @@ This comprehensive guide provides step-by-step instructions for deploying a prod
 - **Network**: Public IP with ports 80/443 open
 
 ### Prerequisites
-- Domain name: `cloud.amarissolutions.com`
+- Domain name: `cloud.e-granary.com`
 - Root or sudo access
 - Basic Linux command line knowledge
 
@@ -196,7 +196,7 @@ sudo apt install -y python3-certbot-apache
 
 # Obtain SSL certificate
 sudo certbot --apache --non-interactive --agree-tos --email admin@amarissolutions.com \
-    -d cloud.amarissolutions.com --redirect
+    -d cloud.e-granary.com --redirect
 ```
 
 #### 2.9 Final Configuration
@@ -218,7 +218,7 @@ sudo -u www-data php occ maintenance:install \
     --admin-pass "admin123"
 
 # Configure trusted domains
-sudo -u www-data php occ config:system:set trusted_domains 1 --value=cloud.amarissolutions.com
+sudo -u www-data php occ config:system:set trusted_domains 1 --value=cloud.e-granary.com
 
 # Enable Redis for file locking and caching
 sudo -u www-data php occ config:system:set memcache.local --value=\\OC\\Memcache\\APCu
@@ -384,7 +384,7 @@ sudo -u www-data php occ maintenance:install --database "mysql" --database-host 
 
 2. Obtain SSL certificate (replace with your email):
    ```bash
-   sudo certbot --apache --non-interactive --agree-tos --email admin@example.com -d cloud.amarissolutions.com --redirect
+   sudo certbot --apache --non-interactive --agree-tos --email admin@example.com -d cloud.e-granary.com --redirect
    ```
 
 3. Enable HTTP/2 and optimize SSL configuration:
@@ -436,7 +436,7 @@ sudo -u www-data php occ maintenance:install --database "mysql" --database-host 
 
 ## Post-Installation
 
-1. Access Nextcloud via web browser at `https://cloud.amarissolutions.com`
+1. Access Nextcloud via web browser at `https://cloud.e-granary.com`
 2. Log in with the admin credentials you set during installation
 3. Complete the setup wizard and configure:
    - Storage locations
