@@ -136,8 +136,8 @@ nextcloud-setup/
    > **Note**: The staging certificate will trigger browser security warnings. 
    > To switch to production later, run:
    > ```bash
-   > sudo certbot delete --cert-name cloud.amarissolutions.com
-   > sudo certbot --apache --non-interactive --agree-tos --email wagura465@gmail.com -d cloud.amarissolutions.com --redirect
+   > sudo certbot delete --cert-name cloud.e-granary.com
+   > sudo certbot --apache --non-interactive --agree-tos --email wagura465@gmail.com -d cloud.e-granary.com --redirect
    > ```
 
    The script will guide you through the installation process and automatically:
@@ -153,7 +153,7 @@ nextcloud-setup/
 4. **Access Your Nextcloud**
    After installation, access your Nextcloud instance at:
    ```
-   https://cloud.amarissolutions.com
+   https://cloud.e-granary.com
    ```
    Use the admin credentials provided during installation.
 
@@ -273,7 +273,7 @@ To set up automatic daily backups:
 
 3. To receive email notifications, add your email:
    ```
-   MAILTO=your-email@example.com
+   MAILTO=wagura465@gmail.com
    0 2 * * * /path/to/nextcloud-setup/scripts/backup-nextcloud.sh
    ```
 
