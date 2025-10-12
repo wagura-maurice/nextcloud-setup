@@ -1,20 +1,38 @@
 # 🚀 Nextcloud Enterprise-Grade Deployment Kit
 
-A comprehensive, production-ready Nextcloud deployment solution with enterprise-grade optimizations, security configurations, and automation scripts. Developed by **Wagura Maurice** ([wagura465@gmail.com](mailto:wagura465@gmail.com)).
+A comprehensive, production-ready Nextcloud deployment solution with enterprise-grade optimizations, security configurations, and automation scripts.
+
+> **Developer**: Wagura Maurice  
+> **Contact**: [wagura465@gmail.com](mailto:wagura465@gmail.com)  
+> **GitHub**: [github.com/wagura-maurice/nextcloud-setup](https://github.com/wagura-maurice/nextcloud-setup)
 
 ## 📋 Table of Contents
-- [Features](#-features)
-- [Quick Start](#-quick-start)
-- [Installation](#-installation)
-- [Backup](#-backup)
-- [Restore](#-restore)
-- [Scheduled Backups](#-scheduled-backups)
-- [Advanced Configuration](#-advanced-configuration)
-- [Security Features](#-security-features)
-- [Architecture](#-architecture-php-fpm-with-apache)
-- [Background Tasks](#-background-tasks--cron-configuration)
-- [License](#-license)
-- [Support](#-support)
+
+### Getting Started
+- [✨ Features](#-features)
+- [🚀 Quick Start](#-quick-start)
+- [📦 Installation](#-installation)
+
+### Core Components
+- [🏗️ Architecture](#-architecture)
+- [⚙️ Configuration](#-configuration)
+- [🔐 Security](#-security-features)
+
+### Data Management
+- [💾 Backup](#-backup)
+- [🔄 Restore](#-restore)
+- [⏰ Scheduled Backups](#-scheduled-backups)
+- [☁️ Cloud Storage](#-cloudflare-r2-integration)
+
+### Advanced
+- [⚡ Performance Tuning](#-performance-optimization)
+- [🔄 Background Tasks](#-background-tasks--cron-configuration)
+- [📚 Additional Resources](#-additional-resources)
+
+### Support
+- [❓ FAQ](#-faq)
+- [📜 License](#-license)
+- [📞 Support](#-support)
 
 ## 🌟 Features
 
@@ -23,6 +41,8 @@ A comprehensive, production-ready Nextcloud deployment solution with enterprise-
 - **Security Hardened**: Includes security headers, SSL configuration, and best practices
 - **Production Ready**: Configured for high availability and reliability
 - **Maintenance Tools**: Built-in scripts for backup, updates, and monitoring
+- **Resource Efficient**: Optimized for minimal resource usage while maintaining performance
+- **Scalable**: Configuration that grows with your needs from small to large deployments
 
 ## 🏗️ Architecture
 
@@ -43,15 +63,43 @@ nextcloud-setup/
     └── installation-guide.md # Detailed setup instructions
 ```
 
+## 🖥️ System Requirements
+
+### Hardware Requirements
+
+| Resource | Minimum | Recommended | Enterprise |
+|----------|---------|-------------|------------|
+| **OS** | Ubuntu 22.04 LTS | Ubuntu 22.04 LTS | Ubuntu 22.04 LTS |
+| **CPU** | 1 core (2.0 GHz) | 2-4 cores (2.4 GHz+) | 8+ cores (3.0 GHz+) |
+| **RAM** | 2GB | 4-8GB | 16GB+ |
+| **Storage** | 20GB SSD | 40GB+ SSD | 100GB+ NVMe |
+| **Network** | 100 Mbps | 1 Gbps | 1 Gbps+ |
+| **Swap** | = RAM (min 2GB) | = RAM (min 4GB) | 8GB+ |
+
+### Software Requirements
+
+- **Web Server**: Apache 2.4+ with mod_php or PHP-FPM
+- **Database**: MySQL 8.0+ or MariaDB 10.5+
+- **PHP**: 8.2+ with required extensions
+- **Cache**: Redis 6.0+ recommended
+- **SSL**: Let's Encrypt certificate (auto-configured)
+
+### Additional Requirements
+
+- **Domain Name**: Required for SSL certificates
+- **Static IP**: Recommended for production environments
+- **Backup Storage**: Cloud storage (R2, S3) or external storage for backups
+- **Firewall**: Properly configured firewall (UFW recommended)
+- **Monitoring**: Basic server monitoring tools
+
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- Ubuntu 22.04 LTS server
-- Minimum 2GB RAM (4GB+ recommended for production)
+- Ubuntu 22.04 LTS server (minimal installation recommended)
 - Root or sudo access
-- Minimum 20GB free disk space (SSD recommended)
-- Domain name pointed to your server's IP
+- Domain name with DNS properly configured
+- SSH access to the server
 
 ### Installation
 
@@ -94,11 +142,13 @@ nextcloud-setup/
 
    The script will guide you through the installation process and automatically:
 
-   - Install and configure all dependencies
-   - Set up Apache with optimized settings
-   - Configure PHP 8.4 with FPM
+   - Install and configure all dependencies (Apache, MySQL/MariaDB, PHP 8.4, Redis)
+   - Set up Apache with optimized settings for Nextcloud
+   - Configure PHP 8.4 FPM with performance optimizations
    - Secure the installation with Let's Encrypt SSL
-   - Optimize Nextcloud for production use
+   - Set up Redis for caching and file locking
+   - Configure automatic backups and maintenance tasks
+   - Optimize system settings for Nextcloud performance
 
 4. **Access Your Nextcloud**
    After installation, access your Nextcloud instance at:
@@ -260,9 +310,75 @@ nano configs/restore-config.conf
 - Redis-based file locking and caching
 - Regular security updates and maintenance scripts
 
-## 🏗️ Architecture: PHP-FPM with Apache
+## ☁️ Cloudflare R2 Integration
 
-This deployment kit uses PHP 8.4 FPM (FastCGI Process Manager) with Apache's `mod_proxy_fcgi` module, which provides several advantages over traditional `mod_php`:
+For backing up to Cloudflare R2 (S3-compatible storage), you'll need to install the AWS CLI tool and configure it with your R2 credentials.
+
+### Prerequisites
+
+1. **Install AWS CLI**
+   ```bash
+   # Install AWS CLI v2 (recommended)
+   curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+   unzip awscliv2.zip
+   sudo ./aws/install
+   
+   # Verify installation
+   aws --version
+   ```
+
+2. **Configure AWS CLI for R2**
+   ```bash
+   aws configure
+   ```
+   When prompted, enter:
+   - **AWS Access Key ID**: Your R2 Access Key ID
+   - **AWS Secret Access Key**: Your R2 Secret Access Key
+   - **Default region name**: `auto` (or your preferred region)
+   - **Default output format**: `json`
+
+3. **Add R2 Endpoint to AWS Config**
+   Edit `~/.aws/config` and add:
+   ```ini
+   [profile default]
+   region = auto
+   s3 =
+     endpoint_url = https://<your-account-id>.r2.cloudflarestorage.com
+   s3_use_path_style = true
+   ```
+   Replace `<your-account-id>` with your Cloudflare account ID.
+
+### Configuration in Backup Script
+
+Update your `backup-config.conf` with the following R2 settings:
+
+```ini
+# Cloudflare R2 Configuration
+R2_ACCESS_KEY_ID="your-r2-access-key"
+R2_SECRET_ACCESS_KEY="your-r2-secret-key"
+R2_BUCKET="your-bucket-name"
+R2_ENDPOINT="https://<your-account-id>.r2.cloudflarestorage.com"
+R2_REGION="auto"
+```
+
+### Testing R2 Connection
+
+Verify your R2 setup with:
+
+```bash
+# List buckets
+aws s3 ls --endpoint-url https://<your-account-id>.r2.cloudflarestorage.com
+
+# Test upload
+echo "test" > test.txt
+aws s3 cp test.txt s3://your-bucket-name/ --endpoint-url https://<your-account-id>.r2.cloudflarestorage.com
+```
+
+## 🏗️ Architecture
+
+### PHP-FPM with Apache
+
+This deployment kit uses PHP 8.4 FPM (FastCGI Process Manager) with Apache's `mod_proxy_fcgi` module, providing several advantages over traditional `mod_php`:
 
 ### Key Components
 
