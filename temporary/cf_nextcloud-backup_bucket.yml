@@ -1,0 +1,18 @@
+bucket: nextcloud-backup
+
+Token value: bZuG1te-ROVrmLUntkatrjNZlCuJqumG18gO0Kfs
+
+Access Key ID: bf0224ba3802349c76f6f627aeb299bb
+
+Secret Access Key: 4002626c9d8a8c8c5dfeef3918b06ff662253174c54f21cbc5e1bf87d8ea010c
+
+endpoints: https://42cbf5797f0c36b80b1b62e20c484993.r2.cloudflarestorage.com
+
+https://42cbf5797f0c36b80b1b62e20c484993.r2.cloudflarestorage.com/nextcloud-backup
+
+aws s3 ls --endpoint-url https://42cbf5797f0c36b80b1b62e20c484993.r2.cloudflarestorage.com/nextcloud-backup
+
+aws s3api list-buckets --endpoint-url https://42cbf5797f0c36b80b1b62e20c484993.r2.cloudflarestorage.com
+
+aws s3api list-objects-v2 --endpoint-url https://42cbf5797f0c36b80b1b62e20c484993.r2.cloudflarestorage.com --bucket nextcloud-backup
+aws s3 cp test.txt s3://nextcloud-backup/ --endpoint-url https://42cbf5797f0c36b80b1b62e20c484993.r2.cloudflarestorage.com
