@@ -5,16 +5,36 @@
 
 set -e
 
+#!/bin/bash
+
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BASE_DIR="$(dirname "$SCRIPT_DIR")"
-BACKUP_DIR="/root/nextcloud-backups"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Load configuration
-if [ -f "$BASE_DIR/configs/restore-config.conf" ]; then
-    source "$BASE_DIR/configs/restore-config.conf"
+# Configuration
+CONFIG_DIR="$PROJECT_ROOT/temp"
+BACKUP_DIR="$PROJECT_ROOT/backups"
+NEXTCLOUD_DIR="/var/www/nextcloud"
+
+# Create necessary directories
+mkdir -p "$CONFIG_DIR"
+mkdir -p "$BACKUP_DIR"
+
+# Load configurations
+if [ -f "$CONFIG_DIR/.nextcloud_restore_config" ]; then
+    source "$CONFIG_DIR/.nextcloud_restore_config"
+elif [ -f "$CONFIG_DIR/.nextcloud_backup_config" ]; then
+    source "$CONFIG_DIR/.nextcloud_backup_config"
 else
-    print_error "Error: Could not find restore configuration file at $BASE_DIR/configs/restore-config.conf"
+    print_error "Error: Missing config files in $CONFIG_DIR/"
+    exit 1
+fi
+
+# Load database credentials
+if [ -f "$CONFIG_DIR/.mysql_credentials" ]; then
+    source "$CONFIG_DIR/.mysql_credentials"
+else
+    print_error "Error: Missing MySQL credentials at $CONFIG_DIR/.mysql_credentials"
     exit 1
 fi
 

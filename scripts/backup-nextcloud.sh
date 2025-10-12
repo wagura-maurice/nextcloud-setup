@@ -8,9 +8,71 @@ set -e
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BASE_DIR="$(dirname "$SCRIPT_DIR")"
-BACKUP_DIR="/root/nextcloud-backups"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Ensure logs directory exists
+LOG_DIR="$PROJECT_ROOT/logs"
+mkdir -p "$LOG_DIR"
+chmod 750 "$LOG_DIR"
+
+# Set up logging
+LOG_FILE="$LOG_DIR/nextcloud-backup-$(date +%Y%m%d_%H%M%S).log"
+
+# Function to log messages
+log() {
+    local level="$1"
+    local message="${*:2}"
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    echo "[$timestamp] [$level] $message" | tee -a "$LOG_FILE"
+}
+
+# Function to log and print status messages
+print_status() {
+    local message="$1"
+    log "INFO" "$message"
+    echo -e "\033[1;32m[+] $message\033[0m"
+}
+
+# Function to log and print error messages
+print_error() {
+    local message="$1"
+    log "ERROR" "$message"
+    echo -e "\e[31m[!] $message\e[0m"
+}
+
+# Function to log and print section headers
+print_section() {
+    local message="$1"
+    log "SECTION" "$message"
+    echo -e "\n=== $message ===\n"
+}
+
+# Log script start
+log "INFO" "Starting Nextcloud backup process"
+log "INFO" "Project root: $PROJECT_ROOT"
+log "INFO" "Log file: $LOG_FILE"
+
+# Configuration
+CONFIG_DIR="$PROJECT_ROOT/temporary"
+BACKUP_DIR="$PROJECT_ROOT/backups"
+NEXTCLOUD_DIR="/var/www/nextcloud"
 DATE=$(date +%Y%m%d_%H%M%S)
+
+# Create necessary directories
+mkdir -p "$CONFIG_DIR"
+mkdir -p "$BACKUP_DIR"
+
+# Log configuration
+log "CONFIG" "Backup directory: $BACKUP_DIR"
+log "CONFIG" "Nextcloud directory: $NEXTCLOUD_DIR"
+log "CONFIG" "Configuration directory: $CONFIG_DIR"
+
+# Load configurations
+source "$CONFIG_DIR/.nextcloud_backup_config" 2>/dev/null || {
+    echo "Error: Missing backup config at $CONFIG_DIR/.nextcloud_backup_config"
+    exit 1
+}
 
 # Function to print status messages
 print_status() {

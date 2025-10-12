@@ -7,8 +7,17 @@ set -e
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-BASE_DIR="$(dirname "$SCRIPT_DIR")"
-CONFIG_DIR="$BASE_DIR/configs"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+CONFIG_DIR="$PROJECT_ROOT/temp"
+
+# Create necessary directories
+mkdir -p "$CONFIG_DIR"
+mkdir -p "$PROJECT_ROOT/backups"
+
+# Set secure permissions
+chmod 750 "$CONFIG_DIR"
+chmod 750 "$PROJECT_ROOT/backups"
+chown -R root:root "$CONFIG_DIR" "$PROJECT_ROOT/backups"
 
 # Load configuration
 source "$CONFIG_DIR/install-config.conf" 2>/dev/null || {
@@ -1116,9 +1125,36 @@ sudo -u www-data php /var/www/nextcloud/occ status
 
 # Create backups of important files
 print_status "Creating configuration backups..."
-mkdir -p /root/nextcloud-backups
-cp -r /var/www/nextcloud/config /root/nextcloud-backup-config-$(date +%Y%m%d)
-cp -r /var/www/nextcloud/data /root/nextcloud-backup-data-$(date +%Y%m%d)
+
+# Create backup directories with timestamps
+BACKUP_TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+BACKUP_CONFIG_DIR="$PROJECT_ROOT/backups/config-$BACKUP_TIMESTAMP"
+BACKUP_DATA_DIR="$PROJECT_ROOT/backups/data-$BACKUP_TIMESTAMP"
+
+mkdir -p "$BACKUP_CONFIG_DIR"
+mkdir -p "$BACKUP_DATA_DIR"
+
+# Copy config and data with proper permissions
+if [ -d "/var/www/nextcloud/config" ]; then
+    cp -a "/var/www/nextcloud/config/"* "$BACKUP_CONFIG_DIR/"
+    chown -R root:root "$BACKUP_CONFIG_DIR"
+    chmod -R 600 "$BACKUP_CONFIG_DIR"
+fi
+
+if [ -d "/var/www/nextcloud/data" ]; then
+    cp -a "/var/www/nextcloud/data/"* "$BACKUP_DATA_DIR/"
+    chown -R root:root "$BACKUP_DATA_DIR"
+    chmod -R 600 "$BACKUP_DATA_DIR"
+fi
+
+# Create a backup info file
+cat > "$BACKUP_CONFIG_DIR/backup-info.txt" << EOF
+Backup created: $(date)
+Nextcloud version: $(sudo -u www-data php /var/www/nextcloud/occ status | grep "version" | awk '{print $3}')
+Backup type: Full
+Config location: $BACKUP_CONFIG_DIR
+Data location: $BACKUP_DATA_DIR
+EOF
 
 # Save installation details with the correct domain
 NEXTCLOUD_DOMAIN="cloud.e-granary.com"
@@ -1149,8 +1185,8 @@ printf "║  %-15s %-50s ║\n" "👤 Admin User:" "$ADMIN_USER"
 printf "║  %-15s %-50s ║\n" "🔑 Password:" "$ADMIN_PASS"
 printf "║  %-15s %-50s ║\n" "📅 Installed:" "$(date)"
 printf "║  %-15s %-50s ║\n" "🔄 Version:" "$NC_VERSION"
-printf "║  %-15s %-50s ║\n" "💾 Config Backup:" "/root/nextcloud-backup-config-$(date +%Y%m%d)"
-printf "║  %-15s %-50s ║\n" "💿 Data Backup:" "/root/nextcloud-backup-data-$(date +%Y%m%d)"
+printf "║  %-15s %-50s ║\n" "💾 Config Backup:" "$BACKUP_CONFIG_DIR"
+printf "║  %-15s %-50s ║\n" "💿 Data Backup:" "$BACKUP_DATA_DIR"
 
 echo "╚════════════════════════════════════════════════════════════════════════════╝"
 echo ""
@@ -1166,12 +1202,14 @@ printf "║  %-15s %-50s ║\n" "📧" "Contact: wagura465@gmail.com"
 printf "║  %-15s %-50s ║\n" "🌐" "GitHub: github.com/wagura-maurice/nextcloud-setup"
 
 # Save the same details to a file for reference
-cat > /root/nextcloud-installation-details.txt << EOL
+cat > "$BACKUP_CONFIG_DIR/nextcloud-installation-details.txt" << EOL
 Nextcloud Installation Details
 =============================
 Installation Date: $(date)
 Nextcloud Version: $(sudo -u www-data php /var/www/nextcloud/occ status | grep "version" | awk '{print $3}')
 Access URL: https://$NEXTCLOUD_DOMAIN
+Config Backup: $BACKUP_CONFIG_DIR
+Data Backup: $BACKUP_DATA_DIR
 Admin Username: $ADMIN_USER
 Admin Password: $ADMIN_PASS
 Config Backup: /root/nextcloud-backup-config-$(date +%Y%m%d)
