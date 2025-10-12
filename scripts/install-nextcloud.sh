@@ -1181,6 +1181,12 @@ This installation was performed using a script created by:
 Wagura Maurice <wagura465@gmail.com>
 EOL
 
+# Make backup and restore scripts executable
+chmod +x /home/wagura-maurice/Documents/Projects/nextcloud-setup/scripts/backup-nextcloud.sh
+chmod +x /home/wagura-maurice/Documents/Projects/nextcloud-setup/scripts/restore-nextcloud.sh
+
+print_status "Backup and restore scripts are now executable"
+
 # Final reboot message
 print_status "The system will now reboot to apply all changes..."
 print_status "After reboot, you can access your Nextcloud at: https://$NEXTCLOUD_DOMAIN"
