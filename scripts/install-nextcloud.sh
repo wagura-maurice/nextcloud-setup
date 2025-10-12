@@ -997,7 +997,7 @@ systemctl enable --now nextcloudcron.timer
 systemctl start nextcloudcron.timer
 # Run status without paging and show only the last few lines
 echo "Nextcloud cron service status:"
-systemctl status nextcloudcron.timer --no-pager --lines=5
+systemctl status nextcloudcron.timer --no-pager --lines 5
 
 # 5. Configure Redis for Nextcloud
 print_status "Configuring Redis for Nextcloud..."
