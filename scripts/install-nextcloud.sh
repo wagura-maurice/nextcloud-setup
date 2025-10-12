@@ -1184,14 +1184,14 @@ Wagura Maurice <wagura465@gmail.com>
 EOL
 
 # Make backup and restore scripts executable
-# Get the directory where this script is located
-if [ -L "${BASH_SOURCE[0]}" ]; then
-    # If the script is a symlink, resolve it
-    SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-else
-    # Otherwise, use the directory of the script
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get the absolute path of the script's directory
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+# If script was executed with a relative path, convert it to absolute
+if [[ ! "$SCRIPT_PATH" =~ ^/ ]]; then
+    SCRIPT_PATH="$(pwd)/${SCRIPT_PATH#./}"
 fi
+# Get the directory containing the script
+SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
 
 # Now try to find the scripts
 if [ -f "$SCRIPT_DIR/backup-nextcloud.sh" ] && [ -f "$SCRIPT_DIR/restore-nextcloud.sh" ]; then
