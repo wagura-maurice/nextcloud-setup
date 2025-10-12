@@ -10,6 +10,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BASE_DIR="$(dirname "$SCRIPT_DIR")"
 BACKUP_DIR="/root/nextcloud-backups"
 
+# Load configuration
+if [ -f "$BASE_DIR/configs/restore-config.conf" ]; then
+    source "$BASE_DIR/configs/restore-config.conf"
+else
+    print_error "Error: Could not find restore configuration file at $BASE_DIR/configs/restore-config.conf"
+    exit 1
+fi
+
+# Export AWS credentials for AWS CLI
+export AWS_ACCESS_KEY_ID="$R2_ACCESS_KEY_ID"
+export AWS_SECRET_ACCESS_KEY="$R2_SECRET_ACCESS_KEY"
+export AWS_DEFAULT_REGION=auto
+
 # Function to print status messages
 print_status() {
     echo -e "\033[1;32m[+] $1\033[0m"
