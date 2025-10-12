@@ -1184,17 +1184,34 @@ Wagura Maurice <wagura465@gmail.com>
 EOL
 
 # Make backup and restore scripts executable
-SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
-if [ -f "$SCRIPT_DIR/backup-nextcloud.sh" ]; then
-    chmod +x "$SCRIPT_DIR/backup-nextcloud.sh"
-    chmod +x "$SCRIPT_DIR/restore-nextcloud.sh"
-    print_status "Backup and restore scripts are now executable"
+# Get the directory where this script is located
+if [ -L "${BASH_SOURCE[0]}" ]; then
+    # If the script is a symlink, resolve it
+    SCRIPT_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 else
-    print_status "Warning: Could not find backup/restore scripts in $SCRIPT_DIR"
-    print_status "Please make sure to set the correct permissions manually"
+    # Otherwise, use the directory of the script
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fi
 
-print_status "Backup and restore scripts are now executable"
+# Now try to find the scripts
+if [ -f "$SCRIPT_DIR/backup-nextcloud.sh" ] && [ -f "$SCRIPT_DIR/restore-nextcloud.sh" ]; then
+    chmod +x "$SCRIPT_DIR/backup-nextcloud.sh"
+    chmod +x "$SCRIPT_DIR/restore-nextcloud.sh"
+    print_status "Backup and restore scripts are now executable in $SCRIPT_DIR"
+else
+    # Try to find scripts in the parent directory
+    PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+    if [ -f "$PARENT_DIR/scripts/backup-nextcloud.sh" ] && [ -f "$PARENT_DIR/scripts/restore-nextcloud.sh" ]; then
+        chmod +x "$PARENT_DIR/scripts/backup-nextcloud.sh"
+        chmod +x "$PARENT_DIR/scripts/restore-nextcloud.sh"
+        print_status "Backup and restore scripts are now executable in $PARENT_DIR/scripts/"
+    else
+        print_status "Warning: Could not find backup/restore scripts in expected locations"
+        print_status "Please make sure to set the correct permissions manually:"
+        print_status "  chmod +x /path/to/backup-nextcloud.sh"
+        print_status "  chmod +x /path/to/restore-nextcloud.sh"
+    fi
+fi
 
 # Final reboot message
 print_status "The system will now reboot to apply all changes..."
