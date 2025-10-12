@@ -2,6 +2,20 @@
 
 A comprehensive, production-ready Nextcloud deployment solution with enterprise-grade optimizations, security configurations, and automation scripts. Developed by **Wagura Maurice** ([wagura465@gmail.com](mailto:wagura465@gmail.com)).
 
+## 📋 Table of Contents
+- [Features](#-features)
+- [Quick Start](#-quick-start)
+- [Installation](#-installation)
+- [Backup](#-backup)
+- [Restore](#-restore)
+- [Scheduled Backups](#-scheduled-backups)
+- [Advanced Configuration](#-advanced-configuration)
+- [Security Features](#-security-features)
+- [Architecture](#-architecture-php-fpm-with-apache)
+- [Background Tasks](#-background-tasks--cron-configuration)
+- [License](#-license)
+- [Support](#-support)
+
 ## 🌟 Features
 
 - **Automated Installation**: Single-command deployment of Nextcloud with all dependencies
@@ -14,14 +28,19 @@ A comprehensive, production-ready Nextcloud deployment solution with enterprise-
 
 ```
 nextcloud-setup/
-├── scripts/              # Deployment and maintenance scripts
-│   └── install-nextcloud.sh  # Main installation script
-├── configs/              # Configuration templates
-│   ├── apache-nextcloud.conf  # Apache virtual host configuration
+├── scripts/                  # Deployment and maintenance scripts
+│   ├── install-nextcloud.sh  # Main installation script
+│   ├── backup-nextcloud.sh   # Backup script with incremental support
+│   ├── restore-nextcloud.sh  # Restore script for full/incremental backups
+│   └── configure-php.sh      # PHP configuration helper
+├── configs/                  # Configuration files
+│   ├── apache-nextcloud.conf # Apache virtual host configuration
 │   ├── php-settings.ini      # PHP-FPM performance tuning
-│   └── install-config.conf   # Installation parameters
-└── docs/                 # Documentation
-    └── installation-guide.md  # Detailed setup instructions
+│   ├── install-config.conf   # Installation parameters
+│   ├── backup-config.conf    # Backup configuration
+│   └── restore-config.conf   # Restore configuration
+└── docs/                     # Documentation
+    └── installation-guide.md # Detailed setup instructions
 ```
 
 ## 🚀 Quick Start
@@ -88,22 +107,150 @@ nextcloud-setup/
    ```
    Use the admin credentials provided during installation.
 
+## 💾 Backup
+
+### Backup Script (`backup-nextcloud.sh`)
+
+#### Features
+- Full and incremental backup support
+- Database backup with transaction support
+- Cloudflare R2 storage integration
+- Configurable retention policy
+- Detailed logging and error handling
+
+#### Usage
+
+```bash
+# Run a full backup
+sudo ./scripts/backup-nextcloud.sh
+
+# Force a full backup (ignore incremental)
+sudo ./scripts/backup-nextcloud.sh --full
+
+# Run with custom config file
+sudo ./scripts/backup-nextcloud.sh --config /path/to/backup-config.conf
+```
+
+#### Configuration (`configs/backup-config.conf`)
+```ini
+# Backup Configuration
+BACKUP_DIR="/var/nextcloud_backups"
+RETAIN_DAYS=30
+
+# Database Configuration
+DB_NAME="nextcloud"
+DB_USER="nextcloud"
+DB_PASS="your_db_password"
+
+# Cloudflare R2 Configuration (optional)
+R2_ACCESS_KEY_ID=""
+R2_SECRET_ACCESS_KEY=""
+R2_BUCKET=""
+R2_ENDPOINT=""
+
+# What to backup (true/false)
+BACKUP_DATA=true
+BACKUP_CONFIG=true
+BACKUP_APPS=true
+BACKUP_DATABASE=true
+
+# Email notifications (optional)
+NOTIFICATION_EMAIL=""
+```
+
+## 🔄 Restore
+
+### Restore Script (`restore-nextcloud.sh`)
+
+#### Features
+- Restores both full and incremental backups
+- Handles database restoration
+- Maintains file permissions
+- Pre/Post restore hooks
+- Detailed logging
+
+#### Usage
+
+```bash
+# Restore from a local backup
+sudo ./scripts/restore-nextcloud.sh /path/to/backup.tar.gz
+
+# Restore from R2 storage
+sudo ./scripts/restore-nextcloud.sh s3://bucket-name/backup.tar.gz
+
+# Run with custom config file
+sudo ./scripts/restore-nextcloud.sh --config /path/to/restore-config.conf /path/to/backup
+```
+
+#### Configuration (`configs/restore-config.conf`)
+```ini
+# Database Configuration
+DB_NAME="nextcloud"
+DB_USER="nextcloud"
+DB_PASS="your_db_password"
+
+# Paths
+NEXTCLOUD_ROOT="/var/www/nextcloud"
+NEXTCLOUD_DATA="${NEXTCLOUD_ROOT}/data"
+
+# What to restore (true/false)
+RESTORE_DATA=true
+RESTORE_CONFIG=true
+RESTORE_APPS=true
+RESTORE_DATABASE=true
+
+# Service Control
+RESTART_SERVICES=true
+
+# Logging
+LOG_FILE="/var/log/nextcloud/restore.log"
+LOG_LEVEL="INFO"  # DEBUG, INFO, WARNING, ERROR
+```
+
+## ⏰ Scheduled Backups
+
+To set up automatic daily backups:
+
+1. Edit the crontab:
+   ```bash
+   sudo crontab -e
+   ```
+
+2. Add the following line to run daily at 2 AM:
+   ```
+   0 2 * * * /path/to/nextcloud-setup/scripts/backup-nextcloud.sh
+   ```
+
+3. To receive email notifications, add your email:
+   ```
+   MAILTO=your-email@example.com
+   0 2 * * * /path/to/nextcloud-setup/scripts/backup-nextcloud.sh
+   ```
+
 ## 🔧 Advanced Configuration
 
 ### Customizing the Installation
 
-Edit the configuration file before running the installation:
+Edit the configuration files before running the scripts:
 
 ```bash
+# Installation configuration
 nano configs/install-config.conf
+
+# Backup configuration
+nano configs/backup-config.conf
+
+# Restore configuration
+nano configs/restore-config.conf
 ```
 
 ### Available Configuration Options
 
-- **Database Settings**: Configure MySQL/MariaDB credentials
-- **Domain Configuration**: Set your domain name and SSL options
-- **Performance Tuning**: Adjust PHP and Apache settings
-- **Security Options**: Configure security headers and access controls
+- **Installation**: Database settings, domain configuration, SSL options
+- **Backup**: Retention policy, cloud storage, notification settings
+- **Restore**: Selective restoration, service control, logging options
+- **Performance**: PHP and Apache tuning, caching configuration
+- **Security**: Access controls, file permissions, encryption
 
 ## 🛡️ Security Features
 
