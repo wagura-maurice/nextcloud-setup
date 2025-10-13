@@ -43,14 +43,34 @@ ENV_FILE="${PROJECT_ROOT}/.env"
 mkdir -p "${LOG_DIR}"
 chmod 750 "${LOG_DIR}"
 
+# Simple log function for early initialization
+log() {
+    if [ $# -ge 2 ]; then
+        local level="$1"
+        shift
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [${level}] $*" | tee -a "${LOG_FILE}" >&2
+    else
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [DEBUG] $*" | tee -a "${LOG_FILE}" >&2
+    fi
+}
+
 # Source logging functions
 if [ -f "${CORE_DIR}/logging.sh" ]; then
-    source "${CORE_DIR}/logging.sh"
+    # Source the logging functions
+    if ! source "${CORE_DIR}/logging.sh"; then
+        log "WARNING" "Failed to source logging.sh, using fallback logging"
+    else
+        # Initialize logging if init_logging exists
+        if type -t init_logging >/dev/null 2>&1; then
+            if ! init_logging; then
+                log "WARNING" "Failed to initialize logging, using fallback"
+            fi
+        else
+            log "WARNING" "init_logging function not found, using fallback logging"
+        fi
+    fi
 else
-    # Fallback logging if logging.sh fails to load
-    log() {
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$1] ${*:2}" | tee -a "${LOG_FILE}"
-    }
+    # Fallback logging if logging.sh doesn't exist
     log_info() { log "INFO" "$@"; }
     log_warning() { log "WARNING" "$@"; }
     log_error() { log "ERROR" "$@"; exit 1; }
@@ -58,11 +78,6 @@ else
     
     log_warning "Using fallback logging - logging.sh not found in ${CORE_DIR}"
 fi
-
-# Initialize logging
-init_logging 2>/dev/null || {
-    log_warning "Failed to initialize logging, using fallback"
-}
 
 # Load common functions
 if [ -f "${CORE_DIR}/common-functions.sh" ]; then

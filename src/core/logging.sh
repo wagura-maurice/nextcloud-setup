@@ -46,6 +46,12 @@ log() {
     # Ensure we have at least a log level and message
     if [ $# -lt 2 ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] log() called with insufficient arguments" >&2
+        echo "[DEBUG] Called from: ${BASH_SOURCE[1]}:${BASH_LINENO[0]} with args: $*" >&2
+        echo "[DEBUG] Call stack:" >&2
+        local i=0
+        while caller $i; do
+            ((i++))
+        done >&2
         return 1
     fi
     
