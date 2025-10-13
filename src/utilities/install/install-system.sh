@@ -68,15 +68,46 @@ install_packages() {
     return 0
 }
 
+# Function to setup repositories
+setup_repositories() {
+    log_info "Setting up required repositories..."
+    
+    # Add universe repository if not already present
+    if ! grep -q "^deb.*universe" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
+        log_info "Adding universe repository..."
+        add-apt-repository -y universe || {
+            log_warning "Failed to add universe repository, trying alternative method..."
+            echo "deb http://archive.ubuntu.com/ubuntu $(lsb_release -sc) universe" | tee -a /etc/apt/sources.list
+        }
+    fi
+    
+    # Add multiverse repository if not already present
+    if ! grep -q "^deb.*multiverse" /etc/apt/sources.list /etc/apt/sources.list.d/*; then
+        log_info "Adding multiverse repository..."
+        add-apt-repository -y multiverse || {
+            log_warning "Failed to add multiverse repository, trying alternative method..."
+            echo "deb http://archive.ubuntu.com/ubuntu $(lsb_release -sc) multiverse" | tee -a /etc/apt/sources.list
+        }
+    fi
+    
+    # Update package lists after adding repositories
+    if ! DEBIAN_FRONTEND=noninteractive apt-get update -y; then
+        log_error "Failed to update package lists after adding repositories"
+        return 1
+    fi
+    
+    return 0
+}
+
 # Function to update package lists
 update_package_lists() {
     log_info "Updating package lists..."
     
-    # Update package lists
+    # First, ensure we have the latest package information
     if ! DEBIAN_FRONTEND=noninteractive apt-get update -y; then
         log_error "Failed to update package lists"
         return 1
-    fi
+    }
     
     # Upgrade existing packages
     if ! DEBIAN_FRONTEND=noninteractive apt-get upgrade -y; then
@@ -85,24 +116,18 @@ update_package_lists() {
     
     # Clean up
     apt-get clean -y
-    apt-get autoremove -y
+    apt-get autoremove -y --purge
     rm -rf /var/lib/apt/lists/*
     
     return 0
 }
 
-# Main installation function
-install_system_dependencies() {
-    log_info "Updating package lists and installing essential tools..."
+# Function to install essential packages
+install_essential_packages() {
+    log_info "Installing essential system packages..."
     
-    # Update package lists
-    if ! update_package_lists; then
-        log_error "Failed to update package lists"
-        return 1
-    fi
-    
-    # Install essential tools
-    local essential_tools=(
+    # First, install the most critical packages that are needed for the rest
+    local critical_packages=(
         software-properties-common
         apt-transport-https
         ca-certificates
@@ -114,13 +139,23 @@ install_system_dependencies() {
         htop
         ufw
         unattended-upgrades
-        fail2ban
-        jq
-        unzip
         bzip2
-        lsof
+        unzip
         net-tools
         dnsutils
+    )
+    
+    # Install critical packages
+    if ! install_packages "${critical_packages[@]}"; then
+        log_error "Failed to install critical packages"
+        return 1
+    }
+    
+    # Now install additional useful packages that might be in universe/multiverse
+    local additional_packages=(
+        jq
+        fail2ban
+        lsof
         telnet
         tcpdump
         traceroute
@@ -128,14 +163,10 @@ install_system_dependencies() {
         iftop
         ntp
         ntpdate
-        ntpstat
         bash-completion
         hdparm
-        iotop
-        iperf
         iperf3
         lshw
-        lsof
         lsscsi
         lvm2
         mtr-tiny
@@ -144,27 +175,57 @@ install_system_dependencies() {
         sysstat
     )
     
-    if ! install_packages "${essential_tools[@]}"; then
-        log_error "Failed to install essential tools"
+    # Try to install additional packages, but don't fail the whole script if they don't install
+    for pkg in "${additional_packages[@]}"; do
+        if ! DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$pkg"; then
+            log_warning "Failed to install optional package: $pkg"
+        fi
+    done
+    
+    return 0
+}
+
+# Main installation function
+install_system_dependencies() {
+    log_info "Starting system dependencies installation..."
+    
+    # Setup required repositories first
+    if ! setup_repositories; then
+        log_warning "Failed to setup all repositories, some packages might not be available"
+    }
+    
+    # Update package lists
+    if ! update_package_lists; then
+        log_error "Failed to update package lists"
         return 1
     fi
     
-    # Add universe repository
-    if ! add-apt-repository universe; then
-        log_warning "Failed to add universe repository"
+    # Install essential packages
+    if ! install_essential_packages; then
+        log_error "Failed to install essential packages"
+        return 1
+    }
+    
+    # Enable and start important services if they were installed
+    if command -v ufw &> /dev/null; then
+        systemctl enable --now ufw
+    else
+        log_warning "ufw not installed, skipping service setup"
     fi
     
-    # Update package lists again after adding repositories
-    if ! update_package_lists; then
-        log_warning "Failed to update package lists after adding repositories"
+    if command -v fail2ban-server &> /dev/null; then
+        systemctl enable --now fail2ban
+    else
+        log_warning "fail2ban not installed, skipping service setup"
     fi
     
-    # Enable and start important services
-    systemctl enable --now ufw
-    systemctl enable --now fail2ban
-    systemctl enable --now unattended-upgrades
+    if systemctl list-unit-files | grep -q unattended-upgrades; then
+        systemctl enable --now unattended-upgrades
+    else
+        log_warning "unattended-upgrades not available, skipping"
+    fi
     
-    log_success "System tools and dependencies installed successfully"
+    log_success "System tools and dependencies installation completed"
     return 0
 }
 

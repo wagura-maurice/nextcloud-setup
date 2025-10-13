@@ -55,7 +55,7 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install -y software-properties-common
 sudo add-apt-repository universe
 sudo apt update
-sudo apt install -y git curl wget nano
+sudo apt install -y git
 
 # Clone the repository
 rm -rf nextcloud-setup
