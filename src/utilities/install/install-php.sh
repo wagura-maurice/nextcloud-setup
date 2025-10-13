@@ -150,7 +150,7 @@ install_php() {
     return 0
 }
 
-# Function to configure PHP-FPM service for Apache
+# Function to install and configure PHP-FPM
 configure_php_fpm() {
     log_info "Configuring PHP-FPM service for Apache..."
     
@@ -158,16 +158,37 @@ configure_php_fpm() {
     local php_ini_path="/etc/php/${PHP_VERSION}/fpm/php.ini"
     local fpm_conf_path="/etc/php/${PHP_VERSION}/fpm/pool.d/www.conf"
     
-    # Check if PHP-FPM is installed by checking the package
+    # Check if PHP-FPM package is installed, if not install it
     if ! dpkg -l | grep -q "php${PHP_VERSION}-fpm"; then
-        log_error "PHP-FPM package is not installed"
+        log_info "PHP-FPM package not found, installing..."
+        if ! apt-get install -y --no-install-recommends "${php_fpm_service}"; then
+            log_error "Failed to install ${php_fpm_service}"
+            return 1
+        fi
+    fi
+    
+    # Verify the service file exists
+    if [ ! -f "/lib/systemd/system/${php_fpm_service}.service" ]; then
+        log_error "PHP-FPM service file not found after installation"
         return 1
     fi
     
-    # Check if the service file exists
-    if [ ! -f "/lib/systemd/system/${php_fpm_service}.service" ]; then
-        log_error "PHP-FPM service file not found"
-        return 1
+    # Ensure the service is enabled and started
+    if ! systemctl is-enabled "${php_fpm_service}" >/dev/null 2>&1; then
+        log_info "Enabling ${php_fpm_service} service..."
+        systemctl enable "${php_fpm_service}" || {
+            log_error "Failed to enable ${php_fpm_service} service"
+            return 1
+        }
+    fi
+    
+    # Start the service if not running
+    if ! systemctl is-active "${php_fpm_service}" >/dev/null 2>&1; then
+        log_info "Starting ${php_fpm_service} service..."
+        systemctl start "${php_fpm_service}" || {
+            log_error "Failed to start ${php_fpm_service} service"
+            return 1
+        }
     fi
     
     # Configure PHP.ini
