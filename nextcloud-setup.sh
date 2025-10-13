@@ -9,24 +9,31 @@ set -o nounset
 set -o pipefail
 
 # Get the directory where this script is located
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$SCRIPT_DIR"
-SRC_DIR="$PROJECT_ROOT/src"
-CORE_DIR="$SRC_DIR/core"
-UTILS_DIR="$SRC_DIR/utilities"
+export SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PROJECT_ROOT="$SCRIPT_DIR"
+export SRC_DIR="$PROJECT_ROOT/src"
+export CORE_DIR="$SRC_DIR/core"
+export UTILS_DIR="$SRC_DIR/utilities"
 
-# Source core functions and environment loader
-source "$CORE_DIR/common-functions.sh"
-source "$CORE_DIR/env-loader.sh"
+# Set default log level if not set
+export LOG_LEVEL=${LOG_LEVEL:-INFO}
 
-# Initialize environment
+# Source environment loader first (it will handle logging initialization)
+if [ -f "$CORE_DIR/env-loader.sh" ]; then
+    source "$CORE_DIR/env-loader.sh"
+else
+    echo "Error: env-loader.sh not found in $CORE_DIR" >&2
+    exit 1
+fi
+
+# Now load the environment
 load_environment
 
-# Now that environment is loaded, source logging
-source "$CORE_DIR/logging.sh"
-
-# Initialize logging with the correct log level
-init_logging
+# Ensure logging is initialized
+if ! type -t log_info >/dev/null 2>&1; then
+    echo "Error: Failed to initialize logging" >&2
+    exit 1
+fi
 
 # Log script start
 log_info "=== Starting Nextcloud Setup ==="

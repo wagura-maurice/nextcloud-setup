@@ -4,14 +4,22 @@
 # This script provides a unified way to load environment variables and configurations
 # for both setup and management scripts.
 
-# Get the project root directory
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Only set SCRIPT_DIR if not already set
+if [ -z "${SCRIPT_DIR:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
+
+# Set project root relative to script directory
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 ENV_FILE="${PROJECT_ROOT}/.env"
 
-# Source core functions
-source "${SCRIPT_DIR}/common-functions.sh"
-source "${SCRIPT_DIR}/logging.sh"
+# Source common functions first
+if [ -f "${SCRIPT_DIR}/common-functions.sh" ]; then
+    source "${SCRIPT_DIR}/common-functions.sh"
+else
+    echo "Error: common-functions.sh not found in ${SCRIPT_DIR}" >&2
+    exit 1
+fi
 
 # Default environment variables
 declare -A DEFAULTS=(
@@ -33,6 +41,16 @@ declare -A DEFAULTS=(
 # Load environment from .env file
 load_environment() {
     local env_file="${1:-$ENV_FILE}"
+    
+    # Initialize logging if not already done
+    if ! type -t log_info >/dev/null 2>&1; then
+        if [ -f "${SCRIPT_DIR}/logging.sh" ]; then
+            source "${SCRIPT_DIR}/logging.sh"
+        else
+            echo "Error: logging.sh not found in ${SCRIPT_DIR}" >&2
+            exit 1
+        fi
+    fi
     
     # Create default .env if it doesn't exist
     if [[ ! -f "$env_file" ]]; then
