@@ -43,6 +43,13 @@ chmod 750 "$log_dir"
 
 # Log a message with timestamp and log level
 log() {
+    # Handle case when called with a single argument (message only)
+    if [ $# -eq 1 ]; then
+        local message="$1"
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] ${message}" | tee -a "${LOG_FILE}" >&2
+        return 0
+    fi
+    
     # Ensure we have at least a log level and message
     if [ $# -lt 2 ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] log() called with insufficient arguments" >&2
@@ -92,9 +99,9 @@ log() {
 }
 
 # Log level functions
-log_debug() { log "DEBUG" "$@"; }
-log_info() { log "INFO" "$@"; }
-log_warning() { log "WARNING" "$@"; }
+log_debug() { [ "${LOG_LEVEL_NUM:-1}" -le 0 ] && log "DEBUG" "$@"; }
+log_info() { [ "${LOG_LEVEL_NUM:-1}" -le 1 ] && log "INFO" "$@"; }
+log_warning() { [ "${LOG_LEVEL_NUM:-1}" -le 2 ] && log "WARNING" "$@"; }
 log_error() { log "ERROR" "$@" 1; }
 
 # Run a command and log the output
