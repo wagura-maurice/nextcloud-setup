@@ -14,10 +14,11 @@ mkdir -p "${LOG_DIR}"
 chmod 750 "${LOG_DIR}"
 
 # Define log levels
-readonly LOG_LEVEL_DEBUG=0
-readonly LOG_LEVEL_INFO=1
-readonly LOG_LEVEL_WARNING=2
-readonly LOG_LEVEL_ERROR=3
+# Using parameter expansion to set default values if not already set
+: "${LOG_LEVEL_DEBUG:=0}"
+: "${LOG_LEVEL_INFO:=1}"
+: "${LOG_LEVEL_WARNING:=2}"
+: "${LOG_LEVEL_ERROR:=3}"
 
 # Map string log levels to numeric values
 map_log_level() {
@@ -33,8 +34,8 @@ map_log_level() {
 }
 
 # Set log level from environment or default to INFO
-LOG_LEVEL_NUM=$(map_log_level "${LOG_LEVEL}")
-export LOG_LEVEL_NUM
+: "${LOG_LEVEL_NUM:=$(map_log_level "${LOG_LEVEL}")}"
+export LOG_LEVEL_DEBUG LOG_LEVEL_INFO LOG_LEVEL_WARNING LOG_LEVEL_ERROR LOG_LEVEL_NUM
 
 # Ensure log directory exists
 log_dir="$(dirname "$LOG_FILE")"
@@ -99,9 +100,9 @@ log() {
 }
 
 # Log level functions
-log_debug() { [ "${LOG_LEVEL_NUM:-1}" -le 0 ] && log "DEBUG" "$@"; }
-log_info() { [ "${LOG_LEVEL_NUM:-1}" -le 1 ] && log "INFO" "$@"; }
-log_warning() { [ "${LOG_LEVEL_NUM:-1}" -le 2 ] && log "WARNING" "$@"; }
+log_debug() { [ "${LOG_LEVEL_NUM:-1}" -le ${LOG_LEVEL_DEBUG} ] && log "DEBUG" "$@"; }
+log_info() { [ "${LOG_LEVEL_NUM:-1}" -le ${LOG_LEVEL_INFO} ] && log "INFO" "$@"; }
+log_warning() { [ "${LOG_LEVEL_NUM:-1}" -le ${LOG_LEVEL_WARNING} ] && log "WARNING" "$@"; }
 log_error() { log "ERROR" "$@" 1; }
 
 # Run a command and log the output
