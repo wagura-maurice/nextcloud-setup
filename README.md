@@ -47,6 +47,7 @@
 ### 1. System Preparation
 
 ```bash
+cd ~
 # Update system packages
 sudo apt update && sudo apt upgrade -y
 
@@ -57,7 +58,6 @@ sudo apt update
 sudo apt install -y git curl wget nano
 
 # Clone the repository
-cd ~
 rm -rf nextcloud-setup
 git clone https://github.com/wagura-maurice/nextcloud-setup.git
 cd nextcloud-setup
