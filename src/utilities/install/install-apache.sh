@@ -5,6 +5,9 @@ set -euo pipefail
 PROJECT_ROOT="/root/nextcloud-setup"
 CORE_DIR="${PROJECT_ROOT}/src/core"
 
+# Export environment variables
+export PROJECT_ROOT CORE_DIR
+
 # Load core configuration and utilities
 source "${CORE_DIR}/config-manager.sh"
 source "${CORE_DIR}/env-loader.sh"
