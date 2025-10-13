@@ -2,13 +2,19 @@
 set -euo pipefail
 
 # Set project root and core directories
-PROJECT_ROOT="/root/nextcloud-setup"
-CORE_DIR="${PROJECT_ROOT}/src/core"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"
+CORE_DIR="${PROJECT_ROOT}/core"
+
+# Debug information
+echo "SCRIPT_DIR: ${SCRIPT_DIR}"
+echo "PROJECT_ROOT: ${PROJECT_ROOT}"
+echo "CORE_DIR: ${CORE_DIR}"
 
 # Source core utilities
-source "${CORE_DIR}/config-manager.sh" 2>/dev/null || { echo "Error: Failed to load config-manager.sh"; exit 1; }
-source "${CORE_DIR}/env-loader.sh" 2>/dev/null || { echo "Error: Failed to load env-loader.sh"; exit 1; }
-source "${CORE_DIR}/logging.sh" 2>/dev/null || { echo "Error: Failed to load logging.sh"; exit 1; }
+source "${CORE_DIR}/config-manager.sh" 2>/dev/null || { echo "Error: Failed to load ${CORE_DIR}/config-manager.sh"; exit 1; }
+source "${CORE_DIR}/env-loader.sh" 2>/dev/null || { echo "Error: Failed to load ${CORE_DIR}/env-loader.sh"; exit 1; }
+source "${CORE_DIR}/logging.sh" 2>/dev/null || { echo "Error: Failed to load ${CORE_DIR}/logging.sh"; exit 1; }
 
 # Initialize environment and logging
 load_environment
