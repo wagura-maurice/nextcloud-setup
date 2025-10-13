@@ -1,0 +1,123 @@
+# Logrotate configuration for Nextcloud
+
+# Nextcloud application logs
+/var/log/nextcloud/*.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 640 www-data adm
+    sharedscripts
+    postrotate
+        # Reload Apache to write to new log files
+        if [ -f /var/run/nginx.pid ]; then
+            nginx -s reload > /dev/null
+        fi
+        if [ -f /var/run/apache2/apache2.pid ]; then
+            apache2ctl graceful > /dev/null
+        fi
+    endscript
+}
+
+# Apache logs specific to Nextcloud
+/var/log/apache2/nextcloud_*.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 640 www-data adm
+    sharedscripts
+    postrotate
+        if [ -f /var/run/apache2/apache2.pid ]; then
+            apache2ctl graceful > /dev/null
+        fi
+    endscript
+}
+
+# PHP-FPM logs
+/var/log/php8.4-fpm.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 640 www-data adm
+    sharedscripts
+    postrotate
+        if [ -f /var/run/php/php8.4-fpm.pid ]; then
+            kill -USR1 `cat /var/run/php/php8.4-fpm.pid`
+        fi
+    endscript
+}
+
+# Redis logs
+/var/log/redis/redis-server.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 640 redis adm
+    sharedscripts
+    postrotate
+        if [ -f /var/run/redis/redis-server.pid ]; then
+            kill -USR1 `cat /var/run/redis/redis-server.pid`
+        fi
+    endscript
+}
+
+# MySQL/MariaDB logs
+/var/log/mysql/mysql-slow.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 640 mysql adm
+    sharedscripts
+    postrotate
+        if [ -f /var/run/mysqld/mysqld.pid ]; then
+            mysqladmin --defaults-file=/etc/mysql/debian.cnf flush-logs
+        fi
+    endscript
+}
+
+# Update logs
+/var/log/nextcloud/update-*.log {
+    weekly
+    missingok
+    rotate 8
+    compress
+    delaycompress
+    notifempty
+    create 640 www-data adm
+}
+
+# Backup logs
+/var/log/nextcloud/backup-*.log {
+    weekly
+    missingok
+    rotate 8
+    compress
+    delaycompress
+    notifempty
+    create 640 www-data adm
+}
+
+# Cron logs
+/var/log/nextcloud/cron.log {
+    daily
+    missingok
+    rotate 30
+    compress
+    delaycompress
+    notifempty
+    create 640 www-data adm
+}
