@@ -1,12 +1,33 @@
 #!/bin/bash
 set -euo pipefail
 
-# Set project root directory
-PROJECT_ROOT="/root/nextcloud-setup"
+# Set script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../" && pwd)"
+CORE_DIR="${PROJECT_ROOT}/src/core"
 
-# Load core configuration and utilities
-source "${PROJECT_ROOT}/src/core/config-manager.sh"
-source "${PROJECT_ROOT}/src/core/logging.sh"
+# Export environment variables
+export SCRIPT_DIR PROJECT_ROOT CORE_DIR
+
+# Set default environment variables
+: "${SRC_DIR:=${PROJECT_ROOT}/src}"
+: "${CORE_DIR:=${SRC_DIR}/core}"
+: "${UTILS_DIR:=${SRC_DIR}/utilities}"
+: "${LOG_DIR:=${PROJECT_ROOT}/logs}"
+: "${CONFIG_DIR:=${PROJECT_ROOT}/config}"
+: "${DATA_DIR:=${PROJECT_ROOT}/data}"
+: "${ENV_FILE:=${PROJECT_ROOT}/.env}"
+
+export SRC_DIR CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR ENV_FILE
+
+# Create required directories
+mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
+chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
+
+# Load core utilities
+source "${CORE_DIR}/env-loader.sh"
+source "${CORE_DIR}/config-manager.sh"
+source "${CORE_DIR}/logging.sh"
 
 # Initialize environment and logging
 load_environment
@@ -14,10 +35,18 @@ init_logging
 
 log_section "System Dependencies Installation"
 
+# Load configuration
+if ! load_installation_config; then
+    log_error "Failed to load installation configuration"
+    exit 1
+fi
+
 # Configuration
 readonly PACKAGE_MANAGER="apt-get"
 readonly INSTALL_OPTS="-y --no-install-recommends"
-readonly REQUIRED_PACKAGES=(
+
+# Define required packages based on configuration
+REQUIRED_PACKAGES=(
     # System utilities
     apt-transport-https ca-certificates curl gnupg lsb-release
     software-properties-common unzip wget htop net-tools vim
@@ -32,6 +61,58 @@ readonly REQUIRED_PACKAGES=(
     
     # Monitoring
     dstat iotop iftop nmon sysstat lsof strace lshw hdparm smartmontools
+)
+
+# Add database packages based on configuration
+if [ "${DB_TYPE:-mysql}" = "mysql" ]; then
+    REQUIRED_PACKAGES+=(
+        mysql-server
+        mysql-client
+        libmysqlclient-dev
+    )
+else
+    REQUIRED_PACKAGES+=(
+        postgresql
+        postgresql-contrib
+        postgresql-client
+        libpq-dev
+    )
+fi
+
+# Add web server packages
+if [ "${WEB_SERVER:-apache}" = "apache" ]; then
+    REQUIRED_PACKAGES+=(
+        apache2
+        libapache2-mod-php${PHP_VERSION}
+        libapache2-mod-security2
+    )
+else
+    REQUIRED_PACKAGES+=(
+        nginx
+        php${PHP_VERSION}-fpm
+    )
+fi
+
+# Add PHP packages
+REQUIRED_PACKAGES+=(
+    php${PHP_VERSION}
+    php${PHP_VERSION}-common
+    php${PHP_VERSION}-mysql
+    php${PHP_VERSION}-gd
+    php${PHP_VERSION}-xml
+    php${PHP_VERSION}-curl
+    php${PHP_VERSION}-mbstring
+    php${PHP_VERSION}-intl
+    php${PHP_VERSION}-zip
+    php${PHP_VERSION}-bcmath
+    php${PHP_VERSION}-imagick
+    php${PHP_VERSION}-gmp
+    php${PHP_VERSION}-apcu
+    php${PHP_VERSION}-redis
+    php${PHP_VERSION}-opcache
+    php${PHP_VERSION}-cli
+    php${PHP_VERSION}-bz2
+    php${PHP_VERSION}-soap
 )
 
 # Function to install packages with error handling
