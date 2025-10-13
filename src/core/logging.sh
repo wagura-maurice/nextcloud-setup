@@ -222,10 +222,19 @@ init_logging() {
     return 0
 }
 
-# Set log level from environment or default to INFO
-LOG_LEVEL_NUM=$(log "${LOG_LEVEL}" | head -n1 | awk '{print $1}')
+# Initialize log level from environment or default to INFO
+: "${LOG_LEVEL:=INFO}"
+case "${LOG_LEVEL^^}" in
+    "DEBUG") LOG_LEVEL_NUM=0 ;;
+    "INFO")  LOG_LEVEL_NUM=1 ;;
+    "WARNING") LOG_LEVEL_NUM=2 ;;
+    "ERROR") LOG_LEVEL_NUM=3 ;;
+    *) LOG_LEVEL_NUM=1 ;; # Default to INFO
+esac
+export LOG_LEVEL LOG_LEVEL_NUM
 
-export -f init_logging log log_debug log_info log_warning log_error run_command
+# Export all logging functions
+export -f log log_debug log_info log_warning log_error run_command init_logging
 
 # Log a message with timestamp and log level
 # Usage: log <level> <message> [exit_code]
