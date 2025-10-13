@@ -52,13 +52,11 @@ log_section "MariaDB Installation"
 readonly MARIADB_VERSION="10.11"
 readonly PACKAGE_MANAGER="apt-get"
 readonly INSTALL_OPTS="-y --no-install-recommends"
-
 # Required packages
 readonly MARIADB_PACKAGES=(
     "mariadb-server"
     "mariadb-client"
     "mariadb-backup"
-    "mariadb-plugin-tokudb"
     "galera-4"
     "socat"
     "pwgen"
