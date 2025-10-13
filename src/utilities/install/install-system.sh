@@ -40,6 +40,9 @@ log_section "System Dependencies Installation"
 if ! load_installation_config; then
     log_error "Failed to load installation configuration"
     exit 1
+fi
+
+# Function to install packages in batches
 install_packages() {
     local packages=("$@")
     local batch_size=10
@@ -81,42 +84,41 @@ install_system_dependencies() {
     if ! update_package_lists; then
         log_error "Failed to update package lists"
         return 1
-    }
-    
+    fi
     # Install packages in logical groups
     log_info "Installing system packages..."
     if ! install_packages "${SYSTEM_PACKAGES[@]}"; then
         log_error "Failed to install system packages"
         return 1
-    }
+    fi
     
     log_info "Installing monitoring tools..."
     if ! install_packages "${MONITORING_TOOLS[@]}"; then
         log_warning "Some monitoring tools failed to install, but continuing..."
-    }
-    
+    fi
+{{ ... }}
     log_info "Installing database packages..."
     if ! install_packages "${DATABASE_PACKAGES[@]}"; then
         log_error "Failed to install database packages"
         return 1
-    }
+    fi
     
     log_info "Installing web server packages..."
     if ! install_packages "${WEB_SERVER_PACKAGES[@]}"; then
         log_error "Failed to install web server packages"
         return 1
-    }
+    fi
     
     log_info "Installing PHP and extensions..."
     if ! install_packages "${PHP_PACKAGES[@]}"; then
         log_error "Failed to install PHP packages"
         return 1
-    }
+    fi
     
     # Configure firewall
     if ! configure_firewall; then
         log_warning "Failed to configure firewall. Continuing..."
-    }
+    fi
     
     log_success "System dependencies installed successfully"
     return 0
