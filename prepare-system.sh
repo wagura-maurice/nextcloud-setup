@@ -1,8 +1,23 @@
 #!/bin/bash
 set -euo pipefail
 
-# Get project root
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Get project root (resolves symlinks if any)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR" && pwd)"
+
+# Ensure we're running from the project root
+cd "$PROJECT_ROOT" || {
+    echo "❌ ERROR: Failed to change to project root directory" >&2
+    exit 1
+}
+
+# Verify this is the correct directory
+if [ ! -f "prepare-system.sh" ] || [ ! -d "src" ]; then
+    echo "❌ ERROR: This script must be run from the project root directory" >&2
+    echo "Current directory: $PWD" >&2
+    echo "Expected to find: prepare-system.sh and src/ directory" >&2
+    exit 1
+fi
 LOG_DIR="${PROJECT_ROOT}/logs"
 CONFIG_DIR="${PROJECT_ROOT}/config"
 DATA_DIR="${PROJECT_ROOT}/data"
@@ -47,29 +62,65 @@ if [ ! -f "${PROJECT_ROOT}/.env" ]; then
     fi
 fi
 
-# Create system directories
+# Create system directories (relative to project root by default)
 echo "Creating system directories..."
+
+# Create project-specific system directories under /var
 create_dir "/var/www/nextcloud" "www-data:www-data" "750"
 create_dir "/var/nextcloud" "www-data:www-data" "750"
 create_dir "/var/backups/nextcloud" "root:root" "750"
 
-# Create Let's Encrypt directories (standard locations)
+# Set up Let's Encrypt directories if they don't exist
 echo "Setting up Let's Encrypt directories..."
-create_dir "/etc/letsencrypt/live" "root:root" "755"
-create_dir "/etc/letsencrypt/archive" "root:root" "750"
-create_dir "/etc/letsencrypt/renewal" "root:root" "750"
-create_dir "/var/lib/letsencrypt" "root:root" "755"
-create_dir "/var/log/letsencrypt" "root:root" "750"
+for dir in \
+    "/etc/letsencrypt/live" \
+    "/etc/letsencrypt/archive" \
+    "/etc/letsencrypt/renewal" \
+    "/var/lib/letsencrypt" \
+    "/var/log/letsencrypt"
+do
+    if [ ! -d "$dir" ]; then
+        echo "Creating Let's Encrypt directory: $dir"
+        mkdir -p "$dir"
+        chmod 750 "$dir"
+        chown root:root "$dir"
+    fi
+done
 
-# Create symlink for SSL certificates (compatible with Apache/nginx)
-create_dir "/etc/ssl/cloud.e-granary.com" "root:ssl-cert" "750"
-ln -sf /etc/letsencrypt/live/cloud.e-granary.com/privkey.pem /etc/ssl/cloud.e-granary.com/privkey.pem
-ln -sf /etc/letsencrypt/live/cloud.e-granary.com/fullchain.pem /etc/ssl/cloud.e-granary.com/fullchain.pem
+# Create SSL certificate directory with proper permissions
+SSL_CERT_DIR="/etc/ssl/cloud.e-granary.com"
+if [ ! -d "$SSL_CERT_DIR" ]; then
+    echo "Creating SSL certificate directory: $SSL_CERT_DIR"
+    mkdir -p "$SSL_CERT_DIR"
+    chmod 750 "$SSL_CERT_DIR"
+    chown root:ssl-cert "$SSL_CERT_DIR" || {
+        echo "⚠️  Warning: Could not set group to ssl-cert for $SSL_CERT_DIR"
+        echo "   The ssl-cert group might not exist. Creating it..."
+        if ! getent group ssl-cert >/dev/null; then
+            groupadd ssl-cert || echo "⚠️  Could not create ssl-cert group"
+        fi
+        chown root:ssl-cert "$SSL_CERT_DIR" 2>/dev/null || true
+    }
+fi
+
+# Create symlinks for SSL certificates
+for cert in privkey.pem fullchain.pem; do
+    if [ ! -e "$SSL_CERT_DIR/$cert" ]; then
+        ln -sf "/etc/letsencrypt/live/cloud.e-granary.com/$cert" "$SSL_CERT_DIR/$cert" || \
+            echo "⚠️  Could not create symlink for $cert"
+    fi
+done
 
 # Ensure the web server user is in the ssl-cert group
-if ! id -nG www-data | grep -qw ssl-cert; then
+if ! getent group ssl-cert >/dev/null; then
+    echo "Creating ssl-cert group..."
+    groupadd ssl-cert 2>/dev/null || echo "⚠️  Could not create ssl-cert group"
+fi
+
+if ! id -nG www-data 2>/dev/null | grep -qw ssl-cert; then
     echo "Adding www-data to ssl-cert group..."
-    usermod -aG ssl-cert www-data || echo "Warning: Failed to add www-data to ssl-cert group"
+    usermod -aG ssl-cert www-data 2>/dev/null || \
+        echo "⚠️  Warning: Failed to add www-data to ssl-cert group"
 fi
 
 # Set up certbot auto-renewal
