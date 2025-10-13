@@ -1,6 +1,7 @@
 # 🚀 Nextcloud Enterprise-Grade Deployment Kit
 
 ## 📋 Table of Contents
+
 - [System Requirements](#-system-requirements)
 - [Prerequisites](#-prerequisites)
 - [Installation Steps](#-installation-steps)
@@ -19,12 +20,14 @@
 ## 🖥️ System Requirements
 
 ### Hardware Requirements
+
 - **CPU**: 2 cores (4+ recommended)
 - **RAM**: 2GB minimum (4GB+ recommended)
 - **Storage**: 20GB minimum (SSD recommended)
 - **Network**: 100 Mbps minimum (1 Gbps recommended)
 
 ### Software Requirements
+
 - **OS**: Ubuntu 22.04 LTS (recommended)
 - **Web Server**: Apache 2.4+
 - **Database**: MariaDB 10.5+ or MySQL 8.0+
@@ -155,12 +158,14 @@ sudo ./src/utilities/configure/configure-cron.sh
 ### Common Issues
 
 1. **Permission Issues**
+
    ```bash
    sudo chown -R www-data:www-data /var/www/nextcloud/
    sudo chmod -R 755 /var/www/nextcloud/
    ```
 
 2. **Check Service Status**
+
    ```bash
    sudo systemctl status apache2
    sudo systemctl status mariadb
@@ -168,10 +173,11 @@ sudo ./src/utilities/configure/configure-cron.sh
    ```
 
 3. **View Logs**
+
    ```bash
    # Apache error log
    sudo tail -f /var/log/apache2/error.log
-   
+
    # Nextcloud log
    sudo tail -f /var/www/nextcloud/data/nextcloud.log
    ```
@@ -186,6 +192,7 @@ sudo ./src/utilities/configure/configure-cron.sh
 ### Getting Help
 
 If you encounter any issues, please check the following:
+
 - Verify all services are running
 - Check file permissions
 - Review the logs mentioned above
@@ -210,27 +217,32 @@ A comprehensive, production-ready Nextcloud deployment solution with enterprise-
 ## 📋 Table of Contents
 
 ### Getting Started
+
 - [✨ Features](#-features)
 - [🚀 Quick Start](#-quick-start)
 - [📦 Installation](#-installation)
 
 ### Core Components
+
 - [🏗️ Architecture](#-architecture)
 - [⚙️ Configuration](#-configuration)
 - [🔐 Security](#-security-features)
 
 ### Data Management
+
 - [💾 Backup](#-backup)
 - [🔄 Restore](#-restore)
 - [⏰ Scheduled Backups](#-scheduled-backups)
 - [☁️ Cloud Storage](#-cloudflare-r2-integration)
 
 ### Advanced
+
 - [⚡ Performance Tuning](#-performance-optimization)
 - [🔄 Background Tasks](#-background-tasks--cron-configuration)
 - [📚 Additional Resources](#-additional-resources)
 
 ### Support
+
 - [❓ FAQ](#-faq)
 - [📜 License](#-license)
 - [📞 Support](#-support)
@@ -268,14 +280,14 @@ nextcloud-setup/
 
 ### Hardware Requirements
 
-| Resource | Minimum | Recommended | Enterprise |
-|----------|---------|-------------|------------|
-| **OS** | Ubuntu 22.04 LTS | Ubuntu 22.04 LTS | Ubuntu 22.04 LTS |
-| **CPU** | 1 core (2.0 GHz) | 2-4 cores (2.4 GHz+) | 8+ cores (3.0 GHz+) |
-| **RAM** | 2GB | 4-8GB | 16GB+ |
-| **Storage** | 20GB SSD | 40GB+ SSD | 100GB+ NVMe |
-| **Network** | 100 Mbps | 1 Gbps | 1 Gbps+ |
-| **Swap** | = RAM (min 2GB) | = RAM (min 4GB) | 8GB+ |
+| Resource    | Minimum          | Recommended          | Enterprise          |
+| ----------- | ---------------- | -------------------- | ------------------- |
+| **OS**      | Ubuntu 22.04 LTS | Ubuntu 22.04 LTS     | Ubuntu 22.04 LTS    |
+| **CPU**     | 1 core (2.0 GHz) | 2-4 cores (2.4 GHz+) | 8+ cores (3.0 GHz+) |
+| **RAM**     | 2GB              | 4-8GB                | 16GB+               |
+| **Storage** | 20GB SSD         | 40GB+ SSD            | 100GB+ NVMe         |
+| **Network** | 100 Mbps         | 1 Gbps               | 1 Gbps+             |
+| **Swap**    | = RAM (min 2GB)  | = RAM (min 4GB)      | 8GB+                |
 
 ### Software Requirements
 
@@ -298,6 +310,7 @@ nextcloud-setup/
 Before running the main setup, you'll need to prepare your system by running the `prepare-system.sh` script. This script sets up the required directory structure and permissions.
 
 ### Prerequisites
+
 - Linux-based system (Ubuntu/Debian recommended)
 - Sudo privileges
 - Basic system utilities (git, curl, etc.)
@@ -305,6 +318,7 @@ Before running the main setup, you'll need to prepare your system by running the
 ### Running the Preparation Script
 
 1. **Make the script executable** (if not already):
+
    ```bash
    chmod +x prepare-system.sh
    ```
@@ -317,11 +331,13 @@ Before running the main setup, you'll need to prepare your system by running the
 ### What the Script Does
 
 1. **Creates Required Directories**:
+
    - `logs/`: For storing system and application logs
    - `config/`: For configuration files
    - `data/`: For application data
 
 2. **Sets Up Permissions**:
+
    - Ensures proper ownership and permissions for web server access
    - Creates necessary system directories
    - Sets up log rotation
@@ -371,6 +387,7 @@ nano .env  # or use your preferred text editor
 ```
 
 Key settings to configure:
+
 - `NEXTCLOUD_DOMAIN`: Your domain name (e.g., cloud.yourdomain.com)
 - `NEXTCLOUD_ADMIN_USER`: Desired admin username
 - `NEXTCLOUD_ADMIN_PASSWORD`: Strong admin password
@@ -385,6 +402,7 @@ Key settings to configure:
 ```
 
 The installer will:
+
 1. Install all required dependencies
 2. Configure the web server and database
 3. Set up SSL certificates (Let's Encrypt)
@@ -394,6 +412,7 @@ The installer will:
 ### 4. Access Your Nextcloud Instance
 
 Once installation completes, access your Nextcloud at:
+
 ```
 https://cloud.yourdomain.com
 ```
@@ -401,12 +420,14 @@ https://cloud.yourdomain.com
 ### 5. Post-Installation
 
 1. **Verify Installation**:
+
    ```bash
    # Check system status
    ./manage-nextcloud status
    ```
 
 2. **Regular Maintenance**:
+
    ```bash
    # Perform system updates and maintenance
    ./manage-nextcloud maintenance
@@ -446,6 +467,7 @@ https://cloud.yourdomain.com
 ```
 
 ### Main Commands:
+
 - `./prepare-system.sh` - Initial system preparation (run once)
 - `./setup-nextcloud` - Install and configure Nextcloud
 - `./manage-nextcloud` - Manage and maintain your installation
@@ -455,6 +477,7 @@ https://cloud.yourdomain.com
 ### Setup Nextcloud (`./setup-nextcloud`)
 
 Launcher for the main setup script (`src/bin/setup-nextcloud.sh`). Handles the complete installation and configuration of:
+
 - System dependencies
 - Web server (Apache/Nginx)
 - PHP and extensions
@@ -466,6 +489,7 @@ Launcher for the main setup script (`src/bin/setup-nextcloud.sh`). Handles the c
 ### Nextcloud Manager (`./manage-nextcloud`)
 
 Launcher for the management script (`src/bin/manage-nextcloud.sh`). Provides tools for:
+
 - Backup and restore operations
 - System maintenance
 - Performance optimization
@@ -482,6 +506,7 @@ nano config/nextcloud.conf
 ```
 
 Update the following key settings at minimum:
+
 - `NEXTCLOUD_URL`: Your domain name
 - `ADMIN_EMAIL`: Your email address
 - `DB_PASS` and `DB_ROOT_PASS`: Strong database passwords
@@ -501,7 +526,8 @@ This will install and configure all components in the correct order.
 ### 4. Access Your Nextcloud Instance
 
 Once the installation is complete, open your web browser and navigate to:
-```
+
+````
 
 The Nextcloud CLI tool provides a unified interface for all management tasks:
 
@@ -513,9 +539,10 @@ The Nextcloud CLI tool provides a unified interface for all management tasks:
 
 # Install Apache and PHP
 ./nextcloud-setup install apache php
-```
+````
 
 ### Configure Components
+
 ```bash
 # Configure all components
 ./nextcloud-setup configure all
@@ -525,6 +552,7 @@ The Nextcloud CLI tool provides a unified interface for all management tasks:
 ```
 
 ### Backup and Restore
+
 ```bash
 # Create a backup
 ./nextcloud-setup backup
@@ -534,6 +562,7 @@ The Nextcloud CLI tool provides a unified interface for all management tasks:
 ```
 
 ### Maintenance Tasks
+
 ```bash
 # Run maintenance tasks
 ./nextcloud-setup maintenance
@@ -546,85 +575,91 @@ The Nextcloud CLI tool provides a unified interface for all management tasks:
 ```
 
 ### Help and Documentation
+
 ```bash
 # Show help
 ./nextcloud-setup help
 ```
+
 - Domain name with DNS properly configured
 - SSH access to the server
 
 ### Installation
 
 1. **Clone and Prepare**
+
    ```bash
    # Clone the repository
    git clone https://github.com/wagura-maurice/nextcloud-setup.git
    cd nextcloud-setup
-   
+
    # Run the system preparation script
    sudo ./prepare-system.sh
    ```
 
 2. **Run System Installation**
+
    ```bash
    # Make all installation scripts executable
    sudo chmod +x src/utilities/install/*.sh
-   
+
    # Install system dependencies and core components
    sudo ./src/utilities/install/install-system.sh
-   
+
    # Install and configure Apache
    sudo ./src/utilities/install/install-apache.sh
-   
+
    # Install and configure MariaDB
    sudo ./src/utilities/install/install-mariadb.sh
-   
+
    # Install and configure PHP
    sudo ./src/utilities/install/install-php.sh
-   
+
    # Install and configure Redis
    sudo ./src/utilities/install/install-redis.sh
-   
+
    # Install and configure Certbot for SSL
    sudo ./src/utilities/install/install-certbot.sh
-   
+
    # Install Nextcloud
    sudo ./src/utilities/install/install-nextcloud.sh
    ```
 
 3. **Run Configuration Scripts**
    After installation completes, configure all components:
+
    ```bash
    # Make all configuration scripts executable
    sudo chmod +x src/utilities/configure/*.sh
-   
+
    # Configure system settings
    sudo ./src/utilities/configure/configure-system.sh
-   
+
    # Configure Apache web server
    sudo ./src/utilities/configure/configure-apache.sh
-   
+
    # Configure MariaDB database
    sudo ./src/utilities/configure/configure-mariadb.sh
-   
+
    # Configure PHP settings
    sudo ./src/utilities/configure/configure-php.sh
-   
+
    # Configure Redis caching
    sudo ./src/utilities/configure/configure-redis.sh
-   
+
    # Configure SSL certificates with Certbot
    sudo ./src/utilities/configure/configure-certbot.sh
-   
+
    # Configure scheduled tasks
    sudo ./src/utilities/configure/configure-cron.sh
-   
+
    # Finalize Nextcloud configuration
    sudo ./src/utilities/configure/configure-nextcloud.sh
    ```
 
 4. **Complete the Setup**
    Follow the on-screen prompts to complete your Nextcloud installation. The scripts will automatically:
+
    - Configure all installed components
    - Set up security certificates
    - Optimize the server for Nextcloud
@@ -632,7 +667,7 @@ The Nextcloud CLI tool provides a unified interface for all management tasks:
    - Configure scheduled maintenance tasks
    - Provide you with login details
 
-4. **Access Your Nextcloud**
+5. **Access Your Nextcloud**
    After installation, access your Nextcloud instance at:
    ```
    https://cloud.e-granary.com
@@ -644,6 +679,7 @@ The Nextcloud CLI tool provides a unified interface for all management tasks:
 ### Backup Script (`backup-nextcloud.sh`)
 
 #### Features
+
 - Full and incremental backup support
 - Database backup with transaction support
 - Cloudflare R2 storage integration
@@ -664,6 +700,7 @@ sudo ./scripts/backup-nextcloud.sh --config /path/to/backup-config.conf
 ```
 
 #### Configuration (`configs/backup-config.conf`)
+
 ```ini
 # Backup Configuration
 BACKUP_DIR="/var/nextcloud_backups"
@@ -695,6 +732,7 @@ NOTIFICATION_EMAIL=""
 ### Restore Script (`restore-nextcloud.sh`)
 
 #### Features
+
 - Restores both full and incremental backups
 - Handles database restoration
 - Maintains file permissions
@@ -715,6 +753,7 @@ sudo ./scripts/restore-nextcloud.sh --config /path/to/restore-config.conf /path/
 ```
 
 #### Configuration (`configs/restore-config.conf`)
+
 ```ini
 # Database Configuration
 DB_NAME="nextcloud"
@@ -744,11 +783,13 @@ LOG_LEVEL="INFO"  # DEBUG, INFO, WARNING, ERROR
 To set up automatic daily backups:
 
 1. Edit the crontab:
+
    ```bash
    sudo crontab -e
    ```
 
 2. Add the following line to run daily at 2 AM:
+
    ```
    0 2 * * * /path/to/nextcloud-setup/scripts/backup-nextcloud.sh
    ```
@@ -799,21 +840,25 @@ For backing up to Cloudflare R2 (S3-compatible storage), you'll need to install 
 ### Prerequisites
 
 1. **Install AWS CLI**
+
    ```bash
    # Install AWS CLI v2 (recommended)
    curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
    unzip awscliv2.zip
    sudo ./aws/install
-   
+
    # Verify installation
    aws --version
    ```
 
 2. **Configure AWS CLI for R2**
+
    ```bash
    aws configure
    ```
+
    When prompted, enter:
+
    - **AWS Access Key ID**: Your R2 Access Key ID
    - **AWS Secret Access Key**: Your R2 Secret Access Key
    - **Default region name**: `auto` (or your preferred region)
