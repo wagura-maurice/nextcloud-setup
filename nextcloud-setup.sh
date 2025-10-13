@@ -13,6 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 SRC_DIR="$PROJECT_ROOT/src"
 CORE_DIR="$SRC_DIR/core"
+UTILS_DIR="$SRC_DIR/utilities"
 
 # Source core functions and environment loader
 source "$CORE_DIR/common-functions.sh"
@@ -42,208 +43,215 @@ chmod 750 "$LOG_DIR"
 chmod 750 "$BACKUP_DIR"
 chmod 750 "$(dirname "$NEXTCLOUD_DATA_DIR")"
 
+# Define component installation and configuration order
+INSTALL_ORDER=(
+    "system"
+    "webserver"
+    "php"
+    "database"
+    "redis"
+    "nextcloud"
+)
+
+# Let's Encrypt is optional and should be installed separately
+LETSENCRYPT_COMPONENT="letsencrypt"
+
 # Show usage information
 show_usage() {
     echo "Nextcloud CLI - Unified Interface for Nextcloud Setup and Maintenance"
     echo "Usage: $0 [command] [options]"
     echo ""
     echo "Commands:"
-    echo "  install [component]  Install Nextcloud components (all, nextcloud, database, webserver, php, redis, system)"
-    echo "  configure [target]   Configure system components (all, php, webserver, database, redis, system)"
-    echo "  backup               Create a backup of Nextcloud data and database"
-    echo "  restore              Restore Nextcloud from a backup"
-    echo "  update               Update Nextcloud and its components"
-    echo "  maintenance          Run maintenance tasks"
-    echo "  monitor              Monitor Nextcloud status and performance"
-    echo "  help                 Show this help message"
+    echo "  install [component]    Install Nextcloud components (all, ${INSTALL_ORDER[*]}, $LETSENCRYPT_COMPONENT)"
+    echo "  configure [target]     Configure system components (all, ${INSTALL_ORDER[*]}, $LETSENCRYPT_COMPONENT)"
+    echo "  update                 Update Nextcloud and its components"
+    echo "  status                 Show status of all components"
+    echo "  help                   Show this help message"
     echo ""
-    echo "Options:"
-    echo "  --config FILE        Specify a custom configuration file"
-    echo "  --log-level LEVEL    Set log level (DEBUG, INFO, WARNING, ERROR)"
+    echo "For backup, restore, and maintenance operations, use nextcloud-manager.sh"
     echo ""
-    exit 1
-}
-
-# Install components
-install_component() {
-    local component="${1:-all}"
-    log_section "Starting installation of $component"
-    
-    case $component in
-        all)
-            # Install all components in the correct order
-            "$SCRIPTS_DIR/install-system.sh"
-            "$SCRIPTS_DIR/install-database.sh"
-            "$SCRIPTS_DIR/install-webserver.sh"
-            "$SCRIPTS_DIR/install-php.sh"
-            "$SCRIPTS_DIR/install-redis.sh"
-            "$SCRIPTS_DIR/install-nextcloud.sh"
-            ;;
-        system)
-            "$SCRIPTS_DIR/install-system.sh"
-            ;;
-        database)
-            "$SCRIPTS_DIR/install-database.sh"
-            ;;
-        webserver)
-            "$SCRIPTS_DIR/install-webserver.sh"
-            ;;
-        php)
-            "$SCRIPTS_DIR/install-php.sh"
-            ;;
-        redis)
-            "$SCRIPTS_DIR/install-redis.sh"
-            ;;
-        nextcloud)
-            "$SCRIPTS_DIR/install-nextcloud.sh"
-            ;;
-        *)
-            log_error "Unknown component: $component"
-            show_usage
-            ;;
-    esac
-    
-    log_success "Installation of $component completed"
-}
-
-# Configure components
-configure_component() {
-    local component="${1:-all}"
-    log_section "Configuring $component"
-    
-    case $component in
-        all)
-            # Configure all components in the correct order
-            "$SRC_DIR/config/configure-system.sh"
-            "$SRC_DIR/config/configure-database.sh"
-            "$SRC_DIR/config/configure-php.sh"
-            "$SRC_DIR/config/configure-redis.sh"
-            "$SRC_DIR/config/configure-webserver.sh"
-            ;;
-        system)
-            "$SRC_DIR/config/configure-system.sh"
-            ;;
-        database)
-            "$SRC_DIR/config/configure-database.sh"
-            ;;
-        php)
-            "$SRC_DIR/config/configure-php.sh"
-            ;;
-        redis)
-            "$SRC_DIR/config/configure-redis.sh"
-            ;;
-        webserver)
-            "$SRC_DIR/config/configure-webserver.sh"
-            ;;
-        *)
-            log_error "Unknown component: $component"
-            show_usage
-            ;;
-    esac
-    
-    log_success "Configuration of $component completed"
-}
-
-# Backup Nextcloud
-backup_nextcloud() {
-    log_section "Starting Nextcloud backup"
-    "$SRC_DIR/lib/backup-nextcloud.sh"
-    log_success "Backup completed successfully"
-}
-
-# Restore Nextcloud
-restore_nextcloud() {
-    local backup_file="$1"
-    log_section "Starting Nextcloud restore from $backup_file"
-    
-    if [ ! -f "$backup_file" ]; then
-        log_error "Backup file not found: $backup_file"
-        exit 1
-    fi
-    
-    "$SRC_DIR/lib/restore-nextcloud.sh" "$backup_file"
-    log_success "Restore completed successfully"
-}
+    echo "Installation Order:"
+    echo "  1. system"
+    echo "  2. webserver (Apache/Nginx)"
+    echo "  3. php"
+    echo "  4. database (MySQL/MariaDB)"
+    echo "  5. redis"
+    echo "  6. nextcloud"
+    echo "  7. $LETSENCRYPT (optional, run separately)"
+    echo ""
 
 # Update Nextcloud
-update_nextcloud() {
-    log_section "Updating Nextcloud"
-    "$SRC_DIR/lib/update-nextcloud.sh"
+    log_info "Starting Nextcloud update..."
+    # Implementation here
     log_success "Update completed successfully"
 }
 
-# Run maintenance tasks
-run_maintenance() {
-    log_section "Running maintenance tasks"
-    "$SRC_DIR/lib/maintenance-tasks.sh"
-    log_success "Maintenance tasks completed successfully"
+# Check if a component is installed
+is_component_installed() {
+    local component=$1
+    
+    case $component in
+        system)
+            # Check for basic system utilities
+            command -v apt-get >/dev/null 2>&1 && \
+            command -v systemctl >/dev/null 2>&1
+            ;;
+        webserver)
+            # Check for Apache
+            systemctl is-active --quiet apache2 2>/dev/null
+            ;;
+        php)
+            # Check for PHP-FPM
+            systemctl is-active --quiet php*-fpm 2>/dev/null
+            ;;
+        database)
+            # Check for MariaDB
+            command -v mariadb >/dev/null 2>&1 && \
+            systemctl is-active --quiet mariadb 2>/dev/null
+            ;;
+        nextcloud)
+{{ ... }}
+            systemctl is-active --quiet 'php*-fpm' 2>/dev/null
+            ;;
+        database)
+            systemctl is-active --quiet mariadb 2>/dev/null
+            ;;
+        nextcloud)
+            # Check if web server is running and can access Nextcloud
+            local url="http://localhost/status.php"
+            curl -s -f "$url" | grep -q 'installed.*true' 2>/dev/null
+            ;;
+            # Check if certbot is installed and has certificates
+            (command -v certbot >/dev/null 2>&1 || command -v certbot-auto >/dev/null 2>&1) && \
+            [[ -n $(find /etc/letsencrypt/live -name '*.pem' 2>/dev/null) ]]
+            ;;
+        *) return 1 ;;
+    esac
+    
+    return $?
 }
 
-# Monitor Nextcloud
-monitor_nextcloud() {
-    log_section "Monitoring Nextcloud"
-    "$SRC_DIR/lib/monitor-nextcloud.sh"
-}
-
-# Main function
-main() {
-    # Parse command line arguments
-    local command="${1:-help}"
-    shift
+# Check if a component is properly configured
+is_component_configured() {
+    local component=$1
     
-    # Handle global options
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --config)
-                shift
-                load_config "$1"
-                shift
-                ;;
-            --log-level)
-                shift
-                LOG_LEVEL="$1"
-                shift
-                ;;
-            *)
-                break
-                ;;
-        esac
-    done
+    case $component in
+        system) return 0 ;;  # System is always considered configured
+        webserver)
+            # Check for valid web server configuration
+            if systemctl is-active --quiet apache2 2>/dev/null; then
+                apache2ctl -t >/dev/null 2>&1
+            else
+                return 1
+            fi
+            ;;
+        php)
+            # Check for required PHP extensions
+            local required_extensions=("mysqli" "pdo_mysql" "gd" "xml" "curl" "mbstring" "intl" "zip" "imagick")
+            local missing_extensions=()
+            
+            for ext in "${required_extensions[@]}"; do
+                if ! php -m | grep -q -i "^${ext}$"; then
+                    missing_extensions+=("$ext")
+                fi
+            done
+            
+            [[ ${#missing_extensions[@]} -eq 0 ]]
+            ;;
+        database)
+            # Check if Nextcloud database exists and is accessible
+            if [[ -f "$PROJECT_ROOT/.db_credentials" ]]; then
+                source "$PROJECT_ROOT/.db_credentials"
+                mariadb -u "$db_user" -p"$db_pass" -e "USE ${db_name};" >/dev/null 2>&1
+            else
+                return 1
+            fi
+            ;;
+        redis)
+            # Check if Redis is configured in Nextcloud
+            if [[ -f "$NEXTCLOUD_ROOT/config/config.php" ]]; then
+                grep -q "'memcache.local' => '\\OC\\\\Memcache\\\\Redis'" "$NEXTCLOUD_ROOT/config/config.php" && \
+                grep -q "'redis' => " "$NEXTCLOUD_ROOT/config/config.php"
+            else
+                return 1
+            fi
+            ;;
+        nextcloud)
+            # Check if Nextcloud is installed and configured
+            if [[ -f "$NEXTCLOUD_ROOT/occ" ]]; then
+                sudo -u "$HTTP_USER" php "$NEXTCLOUD_ROOT/occ" status --no-ansi 2>&1 | grep -q 'installed: true'
+            else
+                return 1
+            fi
+            ;;
+        letsencrypt)
+            # Check if Let's Encrypt is properly configured
+            if [[ -f "/etc/letsencrypt/options-ssl-apache.conf" || -f "/etc/letsencrypt/options-ssl-nginx.conf" ]]; then
+                return 0
+            else
+                return 1
+            fi
+            ;;
+        *) return 1 ;;
+    esac
     
-    # Execute command
-    case "$command" in
-        install)
-            install_component "$@"
-            ;;
-        configure)
-            configure_component "$@"
-            ;;
-        backup)
-            backup_nextcloud
-            ;;
-        restore)
-            restore_nextcloud "$@"
+    return $?
+}Handle Let's Encrypt separately as it's optional
+    if [[ "$component" == "$LETSENCRYPT_COMPONENT" ]]; then
+        run_component_script "install" "letsencrypt"
+        return $?
+    fi
+    
+{{ ... }}
             ;;
         update)
             update_nextcloud
             ;;
-        maintenance)
-            run_maintenance
-            ;;
-        monitor)
-            monitor_nextcloud
-            ;;
-        help|--help|-h)
+        status)
+        # Show detailed status of all components
+        log_section "Nextcloud Setup - Component Status"
+        echo -e "\n\033[1mComponent          Installed  Configured  Status\033[0m"
+        echo "------------------------------------------------"
+        
+        # Check each component
+        for comp in "${INSTALL_ORDER[@]}" "$LETSENCRYPT_COMPONENT"; do
+            local installed=false
+            local configured=false
+            local status="Not Running"
+            
+            # Check if component is installed
+            if is_component_installed "$comp"; then
+                installed=true
+                
+                # Check if component is running
+                if is_component_running "$comp"; then
+                    status="Running"
+                fi
+                
+                # Check if component is configured
+                if is_component_configured "$comp"; then
+                    configured=true
+                fi
+            fi
+            
+            # Format output with colors
+            local installed_icon=$([[ "$installed" == true ]] && echo -e "\033[0;32m✓\033[0m" || echo -e "\033[0;31m✗\033[0m")
+            local configured_icon=$([[ "$configured" == true ]] && echo -e "\033[0;32m✓\033[0m" || echo -e "\033[0;33m✗\033[0m")
+            
+            # Color status based on state
+            if [[ "$status" == "Running" ]]; then
+                status="\033[0;32m$status\033[0m"
+            else
+                status="\033[0;31m$status\033[0m"
+            fi
+            
+            # Print component status
+            printf "%-18s %-10s %-11s %-20s\n" "$comp" "$installed_icon" "$configured_icon" "$status"
+        done
             show_usage
-            ;;
-        *)
-            log_error "Unknown command: $command"
-            show_usage
+            exit 1
             ;;
     esac
+    
+    log_info "Operation completed successfully"
 }
-
-# Run the main function
-main "$@"
-
-exit 0

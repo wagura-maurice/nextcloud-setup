@@ -2,19 +2,28 @@
 
 # Nextcloud Manager
 # ================
-# Main entry point for managing an existing Nextcloud installation.
-# This script provides a menu-driven interface for common Nextcloud maintenance tasks.
+# A comprehensive tool for managing Nextcloud operations including:
+# - Backup and restore
+# - System maintenance
+# - Performance optimization
+# - Security checks
+# - Monitoring
 
 # Set strict mode for better error handling
 set -o errexit
 set -o nounset
 set -o pipefail
 
+# Set default values for exit codes
+EXIT_SUCCESS=0
+EXIT_FAILURE=1
+
 # Get the directory of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 SRC_DIR="$PROJECT_ROOT/src"
 CORE_DIR="$SRC_DIR/core"
+UTILS_DIR="$SRC_DIR/utilities"
 
 # Source core functions and environment loader
 source "$CORE_DIR/common-functions.sh"
@@ -35,155 +44,207 @@ source "$CORE_DIR/config-manager.sh"
 # Check if running as root
 if [ "$(id -u)" -ne 0 ]; then
     log_error "This script must be run as root"
-    exit 1
+    exit $EXIT_FAILURE
 fi
 
 # Ensure required directories exist
-mkdir -p "$LOG_DIR"
-chmod 750 "$LOG_DIR"
-chmod 750 "$BACKUP_DIR"
-chmod 750 "$(dirname "$NEXTCLOUD_DATA_DIR")"
+for dir in "$LOG_DIR" "$BACKUP_DIR" "$(dirname "$NEXTCLOUD_DATA_DIR")"; do
+    if [ ! -d "$dir" ]; then
+        log_info "Creating directory: $dir"
+        mkdir -p "$dir"
+        chmod 750 "$dir"
+    fi
+done
+
+# Check if Nextcloud is installed
+if [ ! -f "$NEXTCLOUD_ROOT/occ" ]; then
+    log_error "Nextcloud is not installed at $NEXTCLOUD_ROOT"
+    log_info "Please run nextcloud-setup.sh first"
+    exit $EXIT_FAILURE
+fi
+
+# Include component scripts
+source "$UTILS_DIR/backup/backup-functions.sh"
+source "$UTILS_DIR/restore/restore-functions.sh"
+source "$UTILS_DIR/maintenance/maintenance-functions.sh"
+source "$UTILS_DIR/monitoring/monitoring-functions.sh"
+
+# Display header
+show_header() {
+    clear
+    echo -e "\033[1;34m=== Nextcloud Manager ===\033[0m"
+    echo -e "\033[1mVersion: 2.0.0\033[0m"
+    echo -e "Nextcloud Path: $NEXTCLOUD_ROOT"
+    echo -e "Data Directory: $NEXTCLOUD_DATA_DIR"
+    echo -e "Backup Directory: $BACKUP_DIR\n"
+}
 
 # Main menu
 show_menu() {
-    clear
-    log_info "=== Nextcloud Manager ==="
-    echo "1. Backup Nextcloud"
-    echo "2. Restore Nextcloud"
-    echo "3. Update Nextcloud"
-    echo "4. Maintenance"
-    echo "5. Monitoring"
-    echo "6. Security"
-    echo "7. Exit"
-    echo ""
-    read -p "Enter your choice [1-7]: " choice
+    while true; do
+        show_header
+        echo -e "\033[1mMain Menu\033[0m"
+        echo "1. 🔄  Backup Operations"
+        echo "2. ⏮️  Restore Operations"
+        echo "3. 🛠️  Maintenance Tasks"
+        echo "4. 📊 System Monitoring"
+        echo "5. 🔒 Security Checks"
+        echo "6. ⚙️  Configuration"
+        echo "0. 🚪 Exit"
+        echo ""
+        read -p "Enter your choice [0-6]: " choice
 
     case $choice in
         1) backup_menu ;;
         2) restore_menu ;;
-        3) update_menu ;;
-        4) maintenance_menu ;;
-        5) monitoring_menu ;;
-        6) security_menu ;;
-        7) exit 0 ;;
-        *) 
+        3) maintenance_menu ;;
+        4) monitoring_menu ;;
+        5) security_menu ;;
+        6) config_menu ;;
+        0) 
+            log_info "Exiting Nextcloud Manager"
+            exit $EXIT_SUCCESS
+            ;;
+        *)
             log_error "Invalid option"
             sleep 1
-            show_menu
             ;;
     esac
 }
 
 # Backup menu
 backup_menu() {
-    clear
-    log_info "=== Backup Menu ==="
-    echo "1. Full Backup (Database + Files)"
-    echo "2. Database Backup Only"
-    echo "3. Files Backup Only"
-    echo "4. List Available Backups"
-    echo "5. Return to Main Menu"
-    echo ""
-    read -p "Enter your choice [1-5]: " choice
+    while true; do
+        show_header
+        echo -e "\033[1m🔧 Backup Operations\033[0m"
+        echo "1. 🔄  Create Full Backup (Database + Files)"
+        echo "2. 💾  Database Backup Only"
+        echo "3. 📁  Files Backup Only"
+        echo "4. 📋  List Available Backups"
+        echo "5. 🕒  Configure Backup Schedule"
+        echo "0. ↩️  Return to Main Menu"
+        echo ""
+        read -p "Enter your choice [0-5]: " choice
 
-    case $choice in
-        1) 
-            log_info "Starting full backup..."
-            "${SCRIPT_DIR}/src/lib/backup/backup-nextcloud.sh" --full
-            ;;
-        2) 
-            log_info "Starting database backup..."
-            "${SCRIPT_DIR}/src/lib/backup/backup-database.sh"
-            ;;
-        3) 
-            log_info "Starting files backup..."
-            "${SCRIPT_DIR}/src/lib/backup/backup-files.sh"
-            ;;
-        4) 
-            log_info "Available backups:"
-            ls -l "${BACKUP_DIR:-/var/backups/nextcloud}" 2>/dev/null || log_warning "No backups found"
-            ;;
-        5) return ;;
-        *) 
-            log_error "Invalid option"
-            ;;
-    esac
-    
-    read -p "Press [Enter] to continue..."
-    backup_menu
+        case $choice in
+            1) 
+                log_info "Starting full backup..."
+                backup_full
+                ;;
+            2) 
+                log_info "Starting database backup..."
+                backup_database
+                ;;
+            3) 
+                log_info "Starting files backup..."
+                backup_files
+                ;;
+            4) 
+                log_info "Available backups:"
+                list_backups
+                ;;
+            5)
+                configure_backup_schedule
+                ;;
+            0) return ;;
+            *) 
+                log_error "Invalid option"
+                ;;
+        esac
+        
+        if [ "$choice" != "0" ]; then
+            read -p "Press [Enter] to continue..."
+        fi
+    done
 }
 
 # Restore menu
 restore_menu() {
-    clear
-    log_info "=== Restore Menu ==="
-    echo "1. Full Restore (Database + Files)"
-    echo "2. Database Restore Only"
-    echo "3. Files Restore Only"
-    echo "4. List Available Backups"
-    echo "5. Return to Main Menu"
-    echo ""
-    read -p "Enter your choice [1-5]: " choice
+    while true; do
+        show_header
+        echo -e "\033[1m⏮️  Restore Operations\033[0m"
+        echo "1. 🔄  Full Restore (Database + Files)"
+        echo "2. 💾  Restore Database Only"
+        echo "3. 📁  Restore Files Only"
+        echo "4. 📋  List Available Backups"
+        echo "0. ↩️  Return to Main Menu"
+        echo ""
+        read -p "Enter your choice [0-4]: " choice
 
-    case $choice in
-        1) 
-            log_info "Starting full restore..."
-            "${SCRIPT_DIR}/src/lib/restore/restore-nextcloud.sh" --full
-            ;;
-        2) 
-            log_info "Starting database restore..."
-            "${SCRIPT_DIR}/src/lib/restore/restore-database.sh"
-            ;;
-        3) 
-            log_info "Starting files restore..."
-            "${SCRIPT_DIR}/src/lib/restore/restore-files.sh"
-            ;;
-        4) 
-            log_info "Available backups:"
-            ls -l "${BACKUP_DIR:-/var/backups/nextcloud}" 2>/dev/null || log_warning "No backups found"
-            ;;
-        5) return ;;
-        *) 
-            log_error "Invalid option"
-            ;;
-    esac
-    
-    read -p "Press [Enter] to continue..."
-    restore_menu
+        case $choice in
+            1) 
+                log_info "Starting full restore..."
+                restore_full
+                ;;
+            2) 
+                log_info "Starting database restore..."
+                restore_database
+                ;;
+            3) 
+                log_info "Starting files restore..."
+                restore_files
+                ;;
+            4) 
+                log_info "Available backups:"
+                list_backups
+                ;;
+            0) return ;;
+            *) 
+                log_error "Invalid option"
+                ;;
+        esac
+        
+        if [ "$choice" != "0" ]; then
+            read -p "Press [Enter] to continue..."
+        fi
+    done
 }
 
-# Update menu
-update_menu() {
-    clear
-    log_info "=== Update Menu ==="
-    echo "1. Update Nextcloud"
-    echo "2. Update System Dependencies"
-    echo "3. Check for Updates"
-    echo "4. Return to Main Menu"
-    echo ""
-    read -p "Enter your choice [1-4]: " choice
+# Maintenance menu
+maintenance_menu() {
+    while true; do
+        show_header
+        echo -e "\033[1m🛠️  Maintenance Tasks\033[0m"
+        echo "1. 🔄  Run Database Optimization"
+        echo "2. 🧹  Cleanup Temporary Files"
+        echo "3. 🔍  Check System Health"
+        echo "4. 🔄  Update Nextcloud"
+        echo "5. 📦  Update System Dependencies"
+        echo "0. ↩️  Return to Main Menu"
+        echo ""
+        read -p "Enter your choice [0-5]: " choice
 
-    case $choice in
-        1) 
-            log_info "Updating Nextcloud..."
-            "${SCRIPT_DIR}/src/lib/update/update-nextcloud.sh"
-            ;;
-        2) 
-            log_info "Updating system dependencies..."
-            "${SCRIPT_DIR}/src/lib/update/update-dependencies.sh"
-            ;;
-        3) 
-            log_info "Checking for updates..."
-            "${SCRIPT_DIR}/src/lib/update/update-nextcloud.sh" --check
-            ;;
-        4) return ;;
-        *) 
-            log_error "Invalid option"
-            ;;
-    esac
-    
-    read -p "Press [Enter] to continue..."
-    update_menu
+        case $choice in
+            1) 
+                log_info "Running database optimization..."
+                optimize_database
+                ;;
+            2) 
+                log_info "Cleaning up temporary files..."
+                cleanup_temp_files
+                ;;
+            3) 
+                log_info "Checking system health..."
+                check_system_health
+                ;;
+            4)
+                log_info "Updating Nextcloud..."
+                update_nextcloud
+                ;;
+            5)
+                log_info "Updating system dependencies..."
+                update_dependencies
+                ;;
+            0) return ;;
+            *) 
+                log_error "Invalid option"
+                ;;
+        esac
+        
+        if [ "$choice" != "0" ]; then
+            read -p "Press [Enter] to continue..."
+        fi
+    done
 }
 
 # Maintenance menu
