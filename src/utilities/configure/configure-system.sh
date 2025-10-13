@@ -45,25 +45,6 @@ set_timezone() {
     return 0
 }
 
-# Function to set system hostname
-set_hostname() {
-    local hostname="${1:-${DEFAULT_HOSTNAME}}"
-    log_info "Setting system hostname to ${hostname}..."
-    
-    if ! hostnamectl set-hostname "${hostname}"; then
-        log_error "Failed to set hostname to ${hostname}"
-        return 1
-    fi
-    
-    # Update /etc/hosts if needed
-    if ! grep -q "${hostname}" /etc/hosts; then
-        echo "127.0.1.1 ${hostname}" >> /etc/hosts
-    fi
-    
-    log_info "Hostname set to ${hostname}"
-    return 0
-}
-
 # Function to configure system limits
 configure_limits() {
     log_info "Configuring system limits..."
@@ -135,13 +116,53 @@ configure_time_sync() {
     return 0
 }
 
+# Function to set system hostname
+set_hostname() {
+    local hostname="${1:-$(hostname -s)}"  # Use current hostname if not provided
+    # Remove any existing "nextcloud-" prefix to avoid duplication
+    hostname="${hostname#nextcloud-}"
+    hostname="nextcloud-${hostname}"  # Add single prefix
+    
+    log_info "Setting system hostname to ${hostname}..."
+    
+    # Set hostname
+    hostnamectl set-hostname "${hostname}" || {
+        log_warning "Failed to set hostname using hostnamectl, trying alternative method..."
+        echo "${hostname}" > /etc/hostname
+        hostname "${hostname}"
+    }
+    
+    # Update /etc/hosts if needed
+    if ! grep -q "${hostname}" /etc/hosts; then
+        echo "127.0.0.1 ${hostname}" >> /etc/hosts
+    fi
+    
+    log_info "Hostname set to ${hostname}"
+    return 0
+}
+
 # Helper function to install and configure NTP
 install_ntp() {
     log_info "Installing and configuring NTP..."
     
+    # Stop and disable systemd-timesyncd if it's causing issues
+    if systemctl is-active systemd-timesyncd &> /dev/null; then
+        systemctl stop systemd-timesyncd
+        systemctl disable systemd-timesyncd
+    fi
+    
+    # Install NTP if not already installed
     if ! command -v ntpq &> /dev/null; then
         log_info "Installing NTP package..."
-        apt-get update && apt-get install -y ntp
+        apt-get update && apt-get install -y ntp || {
+            log_error "Failed to install NTP package"
+            return 1
+        }
+    fi
+    
+    # Backup existing config
+    if [ -f /etc/ntp.conf ]; then
+        cp /etc/ntp.conf /etc/ntp.conf.bak
     fi
     
     # Configure NTP servers
@@ -177,6 +198,8 @@ EOL
     if command -v ntpq &> /dev/null; then
         log_info "NTP peers:"
         ntpq -p
+    else
+        log_warning "ntpq command not found, NTP installation may have failed"
     fi
 }
 
