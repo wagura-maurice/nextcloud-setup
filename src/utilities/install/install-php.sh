@@ -225,26 +225,100 @@ configure_php_fpm() {
     
     # Configure PHP.ini
     log_info "Configuring PHP settings..."
+    
+    # Create a custom PHP configuration for Nextcloud
+    local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/90-nextcloud.ini"
+    
+    # Nextcloud recommended settings
+    cat > "${nextcloud_ini}" << 'EOF'
+; Nextcloud recommended settings
+max_execution_time = 3600
+max_input_time = 3600
+memory_limit = 2G
+upload_max_filesize = 10G
+post_max_size = 10G
+
+; Default timezone
+[Date]
+date.timezone = UTC
+
+; OPcache settings for better performance
+[opcache]
+opcache.enable = 1
+opcache.enable_cli = 1
+opcache.memory_consumption = 256
+opcache.interned_strings_buffer = 16
+opcache.max_accelerated_files = 10000
+opcache.validate_timestamps = 1
+opcache.save_comments = 1
+opcache.revalidate_freq = 1
+opcache.fast_shutdown = 1
+
+; Session settings
+[session]
+session.auto_start = 0
+session.cookie_httponly = 1
+session.cookie_secure = 1
+session.use_strict_mode = 1
+session.cookie_samesite = Lax
+session.cookie_lifetime = 0
+session.gc_maxlifetime = 1440
+
+; Other recommended settings
+[PHP]
+default_socket_timeout = 60
+
+[Pcre]
+pcre.jit = 1
+pcre.backtrack_limit = 1000000
+pcre.recursion_limit = 100000
+
+[MySQL]
+mysql.connect_timeout = 60
+mysqli.reconnect = Off
+
+[Zend]
+zend.assertions = -1
+
+[Core]
+expose_php = Off
+file_uploads = On
+allow_url_fopen = On
+allow_url_include = Off
+default_charset = UTF-8
+
+[mbstring]
+mbstring.func_overload = 0
+mbstring.internal_encoding = UTF-8
+mbstring.encoding_translation = Off
+
+[PHP]
+output_buffering = 4096
+short_open_tag = Off
+variables_order = GPCS
+request_order = GP
+register_argc_argv = Off
+auto_globals_jit = On
+EOF
+
+    # Set proper permissions
+    chmod 644 "${nextcloud_ini}"
+    
+    # Also update the main php.ini with critical settings
     for setting in \
-        "upload_max_filesize = 16G" \
-        "post_max_size = 16G" \
+        "upload_max_filesize = 10G" \
+        "post_max_size = 10G" \
         "memory_limit = 2G" \
         "max_execution_time = 3600" \
         "max_input_time = 3600" \
-        "date.timezone = UTC" \
-        "opcache.enable = 1" \
-        "opcache.validate_timestamps = 1" \
-        "opcache.revalidate_freq = 1" \
-        "opcache.memory_consumption = 256" \
-        "opcache.max_accelerated_files = 10000" \
-        "opcache.save_comments = 1"
-    do
-        local key=$(echo "$setting" | cut -d'=' -f1 | xargs)
-        if ! grep -q "^$key" "$php_ini_path" 2>/dev/null; then
-            echo "$setting" | tee -a "$php_ini_path" >/dev/null
-        else
-            sed -i "s/^$key.*/$setting/" "$php_ini_path"
-        fi
+        "date.timezone = UTC"; do
+        local key=${setting%%=*}
+        key=${key// /}
+        
+        # Remove any existing setting
+        sed -i "/^${key}/d" "${php_ini_path}"
+        # Add the new setting
+        echo "${setting}" | tee -a "${php_ini_path}" >/dev/null
     done
     
     # Configure FPM pool
