@@ -2,19 +2,22 @@
 set -euo pipefail
 
 # Set fixed paths based on the known repository structure
-PROJECT_ROOT="/root/nextcloud-setup"
+if [ -z "${PROJECT_ROOT:-}" ]; then
+    # If not set by parent script, use default
+    PROJECT_ROOT="/root/nextcloud-setup"
+fi
+
+# Define core directories relative to PROJECT_ROOT
 CORE_DIR="${PROJECT_ROOT}/src/core"
+SRC_DIR="${PROJECT_ROOT}/src"
+UTILS_DIR="${SRC_DIR}/utilities"
+LOG_DIR="${PROJECT_ROOT}/logs"
+CONFIG_DIR="${PROJECT_ROOT}/config"
+DATA_DIR="${PROJECT_ROOT}/data"
+ENV_FILE="${PROJECT_ROOT}/.env"
 
 # Export environment variables
-export PROJECT_ROOT CORE_DIR
-
-# Set other default environment variables
-: "${SRC_DIR:=${PROJECT_ROOT}/src}"
-: "${UTILS_DIR:=${SRC_DIR}/utilities}"
-: "${LOG_DIR:=${PROJECT_ROOT}/logs}"
-: "${CONFIG_DIR:=${PROJECT_ROOT}/config}"
-: "${DATA_DIR:=${PROJECT_ROOT}/data}"
-: "${ENV_FILE:=${PROJECT_ROOT}/.env}"
+export PROJECT_ROOT CORE_DIR SRC_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR ENV_FILE
 
 export SRC_DIR CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR ENV_FILE
 
