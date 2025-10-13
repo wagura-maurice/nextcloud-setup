@@ -4,7 +4,6 @@ set -euo pipefail
 # Load core configuration and utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 source "${SCRIPT_DIR}/core/config-manager.sh"
-source "/root/nextcloud-setup/src/core/env-loader.sh"
 source "${SCRIPT_DIR}/core/logging.sh"
 
 # Initialize environment and logging
