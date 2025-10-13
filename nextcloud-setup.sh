@@ -16,16 +16,40 @@ set -o pipefail
 # Exit on any error
 set -euo pipefail
 
-# Set script directory if not already set
-if [ -z "${SCRIPT_DIR:-}" ]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    export SCRIPT_DIR
-fi
+# Set script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="${SCRIPT_DIR}"
 
-# Set project root if not already set
-if [ -z "${PROJECT_ROOT:-}" ]; then
-    PROJECT_ROOT="$SCRIPT_DIR"
-    export PROJECT_ROOT
+# Export paths
+export SCRIPT_DIR PROJECT_ROOT
+
+# Set default environment variables
+: "${SRC_DIR:=${PROJECT_ROOT}/src}"
+: "${CORE_DIR:=${SRC_DIR}/core}"
+: "${UTILS_DIR:=${SRC_DIR}/utilities}"
+: "${LOG_DIR:=${PROJECT_ROOT}/logs}"
+: "${CONFIG_DIR:=${PROJECT_ROOT}/config}"
+: "${DATA_DIR:=${PROJECT_ROOT}/data}"
+: "${LOG_LEVEL:="INFO"}"
+: "${LOG_FILE:=${LOG_DIR}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log}"
+
+export SRC_DIR CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR LOG_LEVEL LOG_FILE
+
+# Create required directories with proper permissions
+mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
+chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
+
+# Simple logging function if we can't load the proper one
+log() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$1] ${*:2}" | tee -a "${LOG_FILE}"
+}
+
+# Try to load the environment
+if [ -f "${CORE_DIR}/env-loader.sh" ]; then
+    source "${CORE_DIR}/env-loader.sh"
+else
+    log "ERROR" "env-loader.sh not found in ${CORE_DIR}"
+    exit 1
 fi
 
 # Set up project directory structure
