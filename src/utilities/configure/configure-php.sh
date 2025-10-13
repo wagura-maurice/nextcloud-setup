@@ -2,9 +2,22 @@
 set -euo pipefail
 
 # Set project root and core directories
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PROJECT_ROOT="${SCRIPT_DIR}"
-CORE_DIR="${PROJECT_ROOT}/src/core"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"
+CORE_DIR="${PROJECT_ROOT}/core"
+SRC_DIR="${PROJECT_ROOT}"
+UTILS_DIR="${SRC_DIR}/utilities"
+LOG_DIR="${PROJECT_ROOT}/logs"
+CONFIG_DIR="${PROJECT_ROOT}/config"
+DATA_DIR="${PROJECT_ROOT}/data"
+ENV_FILE="${PROJECT_ROOT}/.env"
+
+# Export environment variables
+export PROJECT_ROOT CORE_DIR SRC_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR ENV_FILE
+
+# Create required directories
+mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
+chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
 
 # Source core utilities
 source "${CORE_DIR}/config-manager.sh" 2>/dev/null || {

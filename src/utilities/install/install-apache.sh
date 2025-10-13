@@ -43,7 +43,7 @@ log_section "Apache Installation"
 install_php() {
     log_info "Installing PHP using the dedicated script..."
     
-    local php_script="${CORE_DIR}/../install/install-php.sh"
+    local php_script="${UTILS_DIR}/install/install-php.sh"
     
     if [ -f "$php_script" ]; then
         if ! bash "$php_script"; then
