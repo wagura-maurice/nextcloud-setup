@@ -27,7 +27,6 @@ log_section "System Configuration"
 
 # Default configuration values
 readonly DEFAULT_TIMEZONE="UTC"
-readonly DEFAULT_HOSTNAME="nextcloud-$(hostname -s)"
 readonly SYSCTL_FILE="/etc/sysctl.d/99-nextcloud.conf"
 readonly LIMITS_FILE="/etc/security/limits.conf"
 
@@ -41,6 +40,13 @@ set_timezone() {
         return 1
     fi
     
+    # Ensure the timezone is properly set
+    if [ "$(cat /etc/timezone)" != "${timezone}" ]; then
+        echo "${timezone}" > /etc/timezone
+        ln -sf "/usr/share/zoneinfo/${timezone}" /etc/localtime
+        dpkg-reconfigure -f noninteractive tzdata
+    fi
+    
     log_info "Timezone set to ${timezone}"
     return 0
 }
@@ -49,93 +55,84 @@ set_timezone() {
 configure_limits() {
     log_info "Configuring system limits..."
     
-    # Add or update limits in limits.conf
-    if ! grep -q "nextcloud" "${LIMITS_FILE}"; then
-        cat << EOF | tee -a "${LIMITS_FILE}" > /dev/null
-# Nextcloud optimizations
-*               soft    nofile          65536
-*               hard    nofile          65536
-www-data        soft    nofile          131072
-www-data        hard    nofile          262144
-www-data        soft    nproc           4096
-www-data        hard    nproc           8192
-EOF
-    fi
-    
-    # Create sysctl.d file if it doesn't exist
-    if [ ! -f "${SYSCTL_FILE}" ]; then
-        cat << EOF | tee "${SYSCTL_FILE}" > /dev/null
-# Nextcloud system optimizations
+    # Configure file limits
+    cat > /etc/security/limits.d/nextcloud.conf << 'EOL'
+*               soft    nofile          65535
+*               hard    nofile          65535
+www-data        soft    nofile          65535
+www-data        hard    nofile          65535
+mysql           soft    nofile          65535
+mysql           hard    nofile          65535
+EOL
+
+    # Configure sysctl settings
+    cat > "${SYSCTL_FILE}" << 'EOL'
+# Increase system file descriptor limit
 fs.file-max = 100000
+
+# Increase the maximum number of open files
+fs.nr_open = 100000
+
+# Increase the maximum amount of memory for TCP
+net.core.rmem_max = 16777216
+net.core.wmem_max = 16777216
 net.core.somaxconn = 1024
 net.ipv4.tcp_max_syn_backlog = 4096
 net.core.netdev_max_backlog = 4096
 vm.overcommit_memory = 1
 vm.swappiness = 10
-EOF
-        sysctl -p "${SYSCTL_FILE}" > /dev/null
+EOL
+
+    # Apply sysctl settings
+    if ! sysctl -p "${SYSCTL_FILE}" > /dev/null; then
+        log_warning "Failed to apply sysctl settings"
+        return 1
     fi
     
     log_info "System limits configured"
     return 0
 }
 
-# Function to configure time synchronization
-configure_time_sync() {
-    log_info "Configuring time synchronization..."
-    
-    # Check if systemd-timesyncd is masked and unmask it
-    if systemctl is-enabled systemd-timesyncd 2>&1 | grep -q "masked"; then
-        log_info "Unmasking systemd-timesyncd service..."
-        systemctl unmask systemd-timesyncd || {
-            log_warning "Failed to unmask systemd-timesyncd, will try alternative approach"
-        }
-    fi
-
-    # Check if we should use systemd-timesyncd or install NTP
-    if systemctl is-enabled systemd-timesyncd &> /dev/null; then
-        log_info "Using systemd-timesyncd for time synchronization"
-        if ! timedatectl set-ntp true; then
-            log_warning "Failed to enable NTP via timedatectl"
-        fi
-        if ! systemctl enable --now systemd-timesyncd 2>/dev/null; then
-            log_warning "Failed to start systemd-timesyncd, will try installing NTP instead"
-            install_ntp
-        fi
-    else
-        log_info "systemd-timesyncd not available, installing NTP..."
-        install_ntp
-    fi
-    
-    # Verify time synchronization status
-    if command -v timedatectl &> /dev/null; then
-        timedatectl status
-    fi
-    
-    log_info "Time synchronization configured"
-    return 0
-}
-
 # Function to set system hostname
 set_hostname() {
     local hostname="${1:-$(hostname -s)}"  # Use current hostname if not provided
-    # Remove any existing "nextcloud-" prefix to avoid duplication
-    hostname="${hostname#nextcloud-}"
-    hostname="nextcloud-${hostname}"  # Add single prefix
+    
+    # Remove all instances of "nextcloud-" from the beginning of the string
+    while [[ "$hostname" =~ ^nextcloud-* ]]; do
+        hostname="${hostname#nextcloud-}"
+    done
+    
+    # Add a single "nextcloud-" prefix
+    hostname="nextcloud-${hostname}"
+    
+    # Ensure hostname is not too long (max 63 chars as per RFC 1123)
+    if [ ${#hostname} -gt 63 ]; then
+        log_warning "Hostname is too long, truncating to 63 characters"
+        hostname="${hostname:0:63}"
+    fi
     
     log_info "Setting system hostname to ${hostname}..."
     
-    # Set hostname
-    hostnamectl set-hostname "${hostname}" || {
+    # Set hostname using hostnamectl
+    if ! hostnamectl set-hostname "${hostname}"; then
         log_warning "Failed to set hostname using hostnamectl, trying alternative method..."
         echo "${hostname}" > /etc/hostname
         hostname "${hostname}"
-    }
-    
-    # Update /etc/hosts if needed
-    if ! grep -q "${hostname}" /etc/hosts; then
-        echo "127.0.0.1 ${hostname}" >> /etc/hosts
     fi
+    
+    # Update /etc/hosts - first remove any existing entries
+    sed -i "/${hostname}/d" /etc/hosts 2>/dev/null || true
+    
+    # Create a clean /etc/hosts file
+    cat > /etc/hosts << EOL
+127.0.0.1 localhost
+127.0.1.1 ${hostname}
+
+# The following lines are desirable for IPv6 capable hosts
+::1     localhost ip6-localhost ip6-loopback
+ff02::1 ip6-allnodes
+ff02::2 ip6-allrouters
+EOL
     
     log_info "Hostname set to ${hostname}"
     return 0
@@ -154,10 +151,10 @@ install_ntp() {
     # Install NTP if not already installed
     if ! command -v ntpq &> /dev/null; then
         log_info "Installing NTP package..."
-        apt-get update && apt-get install -y ntp || {
+        if ! apt-get update || ! apt-get install -y ntp; then
             log_error "Failed to install NTP package"
             return 1
-        }
+        fi
     fi
     
     # Backup existing config
@@ -200,7 +197,79 @@ EOL
         ntpq -p
     else
         log_warning "ntpq command not found, NTP installation may have failed"
+        return 1
     fi
+    
+    return 0
+}
+
+# Function to configure time synchronization
+configure_time_sync() {
+    log_info "Configuring time synchronization..."
+    
+    # Try to use systemd-timesyncd first
+    if systemctl is-enabled systemd-timesyncd &> /dev/null; then
+        log_info "Using systemd-timesyncd for time synchronization"
+        if ! timedatectl set-ntp true; then
+            log_warning "Failed to enable NTP via timedatectl"
+        fi
+        if ! systemctl enable --now systemd-timesyncd 2>/dev/null; then
+            log_warning "Failed to start systemd-timesyncd, will try installing NTP instead"
+            install_ntp
+        fi
+    else
+        log_info "systemd-timesyncd not available, installing NTP..."
+        if ! install_ntp; then
+            log_error "Failed to configure time synchronization"
+            return 1
+        fi
+    fi
+    
+    # Verify time synchronization status
+    if command -v timedatectl &> /dev/null; then
+        timedatectl status
+    fi
+    
+    log_info "Time synchronization configured"
+    return 0
+}
+
+# Function to configure swap
+configure_swap() {
+    log_info "Configuring swap..."
+    
+    # Check if swap is already configured
+    if [ -n "$(swapon --show)" ]; then
+        log_info "Swap is already configured"
+        return 0
+    fi
+    
+    local swap_size="2G"
+    local swap_file="/swapfile"
+    
+    # Create swap file
+    fallocate -l "${swap_size}" "${swap_file}" || {
+        log_warning "fallocate failed, trying dd..."
+        dd if=/dev/zero of="${swap_file}" bs=1M count=$((2*1024))
+    }
+    
+    # Set correct permissions
+    chmod 600 "${swap_file}"
+    
+    # Set up swap area
+    mkswap "${swap_file}"
+    swapon "${swap_file}"
+    
+    # Make swap permanent
+    echo "${swap_file} none swap sw 0 0" >> /etc/fstab
+    
+    # Configure swappiness
+    echo "vm.swappiness=10" >> /etc/sysctl.conf
+    echo "vm.vfs_cache_pressure=50" >> /etc/sysctl.conf
+    sysctl -p
+    
+    log_info "Swap configured successfully"
+    return 0
 }
 
 # Main configuration function
@@ -208,27 +277,33 @@ main() {
     log_info "Starting system configuration..."
     
     # Set timezone
-    if ! set_timezone; then
-        log_warning "Failed to set timezone, using default"
-    fi
+    set_timezone "${TIMEZONE:-UTC}" || {
+        log_error "Failed to set timezone"
+        return 1
+    }
     
     # Set hostname
-    if ! set_hostname; then
-        log_warning "Failed to set hostname, using default"
-    fi
+    set_hostname "${HOSTNAME:-}" || {
+        log_error "Failed to set hostname"
+        return 1
+    }
     
     # Configure system limits
-    if ! configure_limits; then
-        log_error "Failed to configure system limits"
-        return 1
-    fi
+    configure_limits || {
+        log_warning "Failed to configure system limits, continuing..."
+    }
     
     # Configure time synchronization
-    if ! configure_time_sync; then
-        log_warning "Failed to configure time synchronization"
-    fi
+    configure_time_sync || {
+        log_warning "Failed to configure time synchronization, continuing..."
+    }
     
-    log_success "System configuration completed successfully"
+    # Configure swap if needed
+    configure_swap || {
+        log_warning "Failed to configure swap, continuing..."
+    }
+    
+    log_success "✓ System configuration completed successfully"
     return 0
 }
 
@@ -239,6 +314,6 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
         exit 1
     fi
     
-    main "$@"
+    main
     exit $?
 fi
