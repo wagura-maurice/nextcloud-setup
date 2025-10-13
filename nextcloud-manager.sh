@@ -21,13 +21,38 @@ EXIT_FAILURE=1
 # Get the directory of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
-SRC_DIR="$PROJECT_ROOT/src"
-CORE_DIR="$SRC_DIR/core"
-UTILS_DIR="$SRC_DIR/utilities"
+SRC_DIR="${PROJECT_ROOT}/src"
+CORE_DIR="${SRC_DIR}/core"
+UTILS_DIR="${SRC_DIR}/utilities"
+
+# Set up logging
+LOG_DIR="${PROJECT_ROOT}/logs"
+mkdir -p "${LOG_DIR}" 2>/dev/null
+chmod 750 "${LOG_DIR}" 2>/dev/null || true
+
+# Set log file with timestamp
+LOG_FILE="${LOG_DIR}/manager-$(date +%Y%m%d%H%M%S).log"
+touch "${LOG_FILE}" 2>/dev/null || {
+    LOG_FILE="/tmp/nextcloud-manager-$(date +%s).log"
+    touch "${LOG_FILE}" || {
+        echo "Failed to create log file" >&2
+        exit 1
+    }
+}
+chmod 640 "${LOG_FILE}" 2>/dev/null || true
+
+# Export environment variables
+export PROJECT_ROOT SRC_DIR CORE_DIR UTILS_DIR LOG_DIR LOG_FILE
 
 # Source core functions and environment loader
-source "$CORE_DIR/common-functions.sh"
-source "$CORE_DIR/logging.sh"
+source "${CORE_DIR}/common-functions.sh"
+source "${CORE_DIR}/logging.sh"
+
+# Initialize logging
+init_logging || {
+    echo "Failed to initialize logging" >&2
+    exit 1
+}
 source "$CORE_DIR/env-loader.sh"
 
 # Initialize environment and logging

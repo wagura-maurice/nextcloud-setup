@@ -19,6 +19,22 @@ set -euo pipefail
 # Set script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${SCRIPT_DIR}"
+
+# Set up logging
+LOG_DIR="${PROJECT_ROOT}/logs"
+mkdir -p "${LOG_DIR}" 2>/dev/null
+chmod 750 "${LOG_DIR}" 2>/dev/null || true
+
+# Set log file with timestamp
+LOG_FILE="${LOG_DIR}/setup-$(date +%Y%m%d%H%M%S).log"
+touch "${LOG_FILE}" 2>/dev/null || {
+    LOG_FILE="/tmp/nextcloud-setup-$(date +%s).log"
+    touch "${LOG_FILE}" || {
+        echo "Failed to create log file" >&2
+        exit 1
+    }
+}
+chmod 640 "${LOG_FILE}" 2>/dev/null || true
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 
 # Export paths

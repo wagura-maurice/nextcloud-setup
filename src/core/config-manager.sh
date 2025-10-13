@@ -204,44 +204,52 @@ apply_config_template() {
 load_installation_config() {
     local config_dir="${1:-$CONFIG_DIR}"
     
+    # Set default installation directory
+    : "${INSTALL_DIR:="/var/www/nextcloud"}"
+    : "${NEXTCLOUD_ROOT:="$INSTALL_DIR"}"
+    : "${NEXTCLOUD_DATA_DIR:="$INSTALL_DIR/data"}"
+    : "${BACKUP_DIR:="/var/backups/nextcloud"}"
+    
     # Default configuration values
     local default_config="
         # System Configuration
-        INSTALL_DIR="/var/www/nextcloud"
-        DATA_DIR="${INSTALL_DIR}/data"
-        BACKUP_DIR="/var/backups/nextcloud"
+        INSTALL_DIR="$INSTALL_DIR"
+        NEXTCLOUD_ROOT="$NEXTCLOUD_ROOT"
+        NEXTCLOUD_DATA_DIR="$NEXTCLOUD_DATA_DIR"
+        BACKUP_DIR="$BACKUP_DIR"
         
         # Database Configuration
-        DB_TYPE="mysql"
-        DB_NAME="nextcloud"
-        DB_USER="nextcloud"
-        DB_PASS=$(openssl rand -hex 16)
-        DB_HOST="localhost"
+        DB_TYPE="${DB_TYPE:-mysql}"
+        DB_NAME="${DB_NAME:-nextcloud}"
+        DB_USER="${DB_USER:-nextcloud}"
+        DB_PASS="${DB_PASS:-$(openssl rand -hex 16)}"
+        DB_HOST="${DB_HOST:-localhost}"
+        DB_PORT="${DB_PORT:-3306}"
         
         # Redis Configuration
-        REDIS_HOST="localhost"
-        REDIS_PORT=6379
+        REDIS_HOST="${REDIS_HOST:-localhost}"
+        REDIS_PORT="${REDIS_PORT:-6379}"
         
         # Web Server Configuration
-        WEB_SERVER="apache"
-        DOMAIN_NAME="localhost"
-        ADMIN_USER="admin"
-        ADMIN_PASS=$(openssl rand -base64 12)
+        WEB_SERVER="${WEB_SERVER:-apache}"
+        DOMAIN_NAME="${DOMAIN_NAME:-localhost}"
+        ADMIN_USER="${ADMIN_USER:-admin}"
+        ADMIN_PASS="${ADMIN_PASS:-$(openssl rand -base64 12)}"
         
         # PHP Configuration
-        PHP_VERSION="8.4"
-        PHP_MEMORY_LIMIT="1G"
-        PHP_UPLOAD_MAX="10G"
-        PHP_POST_MAX_SIZE="10G"
+        PHP_VERSION="${PHP_VERSION:-8.4}"
+        PHP_MEMORY_LIMIT="${PHP_MEMORY_LIMIT:-1G}"
+        PHP_UPLOAD_MAX="${PHP_UPLOAD_MAX:-10G}"
+        PHP_POST_MAX_SIZE="${PHP_POST_MAX_SIZE:-10G}"
         
         # SSL Configuration
-        SSL_ENABLED=true
-        SSL_EMAIL="admin@example.com"
-        SSL_COUNTRY="US"
-        SSL_STATE="California"
-        SSL_LOCALITY="San Francisco"
-        SSL_ORG="Example Org"
-        SSL_OU="IT Department"
+        SSL_ENABLED="${SSL_ENABLED:-true}"
+        SSL_EMAIL="${SSL_EMAIL:-admin@example.com}"
+        SSL_COUNTRY="${SSL_COUNTRY:-US}"
+        SSL_STATE="${SSL_STATE:-California}"
+        SSL_LOCALITY="${SSL_LOCALITY:-San Francisco}"
+        SSL_ORG="${SSL_ORG:-Nextcloud}"
+        SSL_OU="${SSL_OU:-IT Department}"
     "
     
     # Create config directory if it doesn't exist
