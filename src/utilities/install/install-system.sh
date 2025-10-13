@@ -19,28 +19,25 @@ ENV_FILE="${PROJECT_ROOT}/.env"
 # Export environment variables
 export PROJECT_ROOT CORE_DIR SRC_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR ENV_FILE
 
-export SRC_DIR CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR ENV_FILE
-
 # Create required directories
 mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
 chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
 
 # Load core utilities
-source "${CORE_DIR}/env-loader.sh"
-source "${CORE_DIR}/config-manager.sh"
-source "${CORE_DIR}/logging.sh"
+source "${CORE_DIR}/env-loader.sh" 2>/dev/null || true
+source "${CORE_DIR}/config-manager.sh" 2>/dev/null || true
+source "${CORE_DIR}/logging.sh" 2>/dev/null || {
+    # Basic logging function if logging.sh is not available
+    log_info() { echo "[INFO] $*"; }
+    log_error() { echo "[ERROR] $*" >&2; }
+    log_warning() { echo "[WARN] $*" >&2; }
+    log_success() { echo "[SUCCESS] $*"; }
+}
 
-# Initialize environment and logging
-load_environment
-init_logging
+# Initialize logging if available
+command -v init_logging >/dev/null 2>&1 && init_logging || true
 
 log_section "System Dependencies Installation"
-
-# Load configuration
-if ! load_installation_config; then
-    log_error "Failed to load installation configuration"
-    exit 1
-fi
 
 # Function to install packages in batches
 install_packages() {
@@ -52,13 +49,13 @@ install_packages() {
         local batch=("${packages[@]:$i:$batch_size}")
         log_info "Installing package batch: ${batch[*]}"
         
-        if ! DEBIAN_FRONTEND=noninteractive ${PACKAGE_MANAGER} install -y --no-install-recommends "${batch[@]}"; then
+        if ! DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${batch[@]}"; then
             log_warning "Failed to install a batch of packages. Retrying individually..."
             
             # Try installing packages one by one
             for pkg in "${batch[@]}"; do
                 log_info "Attempting to install: $pkg"
-                if ! DEBIAN_FRONTEND=noninteractive ${PACKAGE_MANAGER} install -y --no-install-recommends "$pkg"; then
+                if ! DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$pkg"; then
                     log_error "Failed to install package: $pkg"
                     return 1
                 fi
@@ -76,26 +73,19 @@ update_package_lists() {
     log_info "Updating package lists..."
     
     # Update package lists
-    if ! DEBIAN_FRONTEND=noninteractive ${PACKAGE_MANAGER} update -y; then
+    if ! DEBIAN_FRONTEND=noninteractive apt-get update -y; then
         log_error "Failed to update package lists"
         return 1
     fi
     
     # Upgrade existing packages
-    if ! DEBIAN_FRONTEND=noninteractive ${PACKAGE_MANAGER} upgrade -y; then
+    if ! DEBIAN_FRONTEND=noninteractive apt-get upgrade -y; then
         log_warning "Failed to upgrade all packages, but continuing..."
     fi
     
-    # Install required package for add-apt-repository
-    if ! command -v add-apt-repository >/dev/null 2>&1; then
-        if ! DEBIAN_FRONTEND=noninteractive ${PACKAGE_MANAGER} install -y software-properties-common; then
-            log_warning "Failed to install software-properties-common, some repositories might not be available"
-        fi
-    fi
-    
     # Clean up
-    ${PACKAGE_MANAGER} clean -y
-    ${PACKAGE_MANAGER} autoremove -y
+    apt-get clean -y
+    apt-get autoremove -y
     rm -rf /var/lib/apt/lists/*
     
     return 0
@@ -103,39 +93,78 @@ update_package_lists() {
 
 # Main installation function
 install_system_dependencies() {
-    log_info "Installing system packages..."
-    if ! install_packages "${SYSTEM_PACKAGES[@]}"; then
-        log_error "Failed to install system packages"
-        return 1
-    fi
-    if ! install_packages "${MONITORING_TOOLS[@]}"; then
-        log_warning "Some monitoring tools failed to install, but continuing..."
-    fi
-
-    log_info "Installing database packages..."
-    if ! install_packages "${DATABASE_PACKAGES[@]}"; then
-        log_error "Failed to install database packages"
+    log_info "Updating package lists and installing essential tools..."
+    
+    # Update package lists
+    if ! update_package_lists; then
+        log_error "Failed to update package lists"
         return 1
     fi
     
-    log_info "Installing web server packages..."
-    if ! install_packages "${WEB_SERVER_PACKAGES[@]}"; then
-        log_error "Failed to install web server packages"
+    # Install essential tools
+    local essential_tools=(
+        software-properties-common
+        apt-transport-https
+        ca-certificates
+        gnupg
+        curl
+        wget
+        git
+        nano
+        htop
+        ufw
+        unattended-upgrades
+        fail2ban
+        jq
+        unzip
+        bzip2
+        lsof
+        net-tools
+        dnsutils
+        telnet
+        tcpdump
+        traceroute
+        iotop
+        iftop
+        ntp
+        ntpdate
+        ntpstat
+        bash-completion
+        hdparm
+        iotop
+        iperf
+        iperf3
+        lshw
+        lsof
+        lsscsi
+        lvm2
+        mtr-tiny
+        pciutils
+        strace
+        sysstat
+    )
+    
+    if ! install_packages "${essential_tools[@]}"; then
+        log_error "Failed to install essential tools"
         return 1
     fi
     
-    log_info "Installing PHP and extensions..."
-    if ! install_packages "${PHP_PACKAGES[@]}"; then
-        log_error "Failed to install PHP packages"
-        return 1
+    # Add universe repository
+    if ! add-apt-repository universe; then
+        log_warning "Failed to add universe repository"
     fi
     
-    # Note: Firewall configuration should be handled by the system administrator
-    # or through a dedicated firewall configuration script
-    log_info "Skipping firewall configuration. Please configure your firewall manually."
-    log_info "Recommended: Allow ports 80, 443, and 22 (SSH) for web and secure shell access."
+    # Update package lists again after adding repositories
+    if ! update_package_lists; then
+        log_warning "Failed to update package lists after adding repositories"
+    fi
     
-    log_success "System dependencies installed successfully"
+    # Enable and start important services
+    systemctl enable --now ufw
+    systemctl enable --now fail2ban
+    systemctl enable --now unattended-upgrades
+    
+    log_success "System tools and dependencies installed successfully"
     return 0
 }
 
