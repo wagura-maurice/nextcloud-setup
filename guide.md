@@ -1,52 +1,61 @@
-cd ~
+# Nextcloud Setup Guide
 
-# Update system packages
-
+## Initial Setup
+```bash
+# Update and install required tools
 sudo apt update && sudo apt upgrade -y
-
-# Install required tools
-
-sudo apt install -y software-properties-common
+sudo apt install -y software-properties-common git
 sudo add-apt-repository universe
 sudo apt update
-sudo apt install -y git
 
 # Clone the repository
-
+cd ~
 rm -rf nextcloud-setup
 git clone https://github.com/wagura-maurice/nextcloud-setup.git
 cd nextcloud-setup
 
-# Make all scripts executable
+# Make scripts executable
+sudo chmod +x prepare-system.sh
+sudo chmod +x src/utilities/install/*.sh
+sudo chmod +x src/utilities/configure/*.sh
 
-sudo chmod +x ./prepare-system.sh
-sudo chmod +x src/utilities/install/_.sh
-sudo chmod +x src/utilities/configure/_.sh
-
-# Run system preparation script
-
+# Run system preparation
 sudo ./prepare-system.sh
+```
 
-# Install system dependencies
-
+## Installation
+```bash
+# System setup
 sudo ./src/utilities/install/install-system.sh
-
-# Configure system dependencies
-
 sudo ./src/utilities/configure/configure-system.sh
 
-# Install Apache
-
+# Apache
 sudo ./src/utilities/install/install-apache.sh
-
-# Configure Apache for Nextcloud
-
 sudo ./src/utilities/configure/configure-apache.sh
 
-# Install PHP
-
+# PHP
 sudo ./src/utilities/install/install-php.sh
-
-# Configure PHP for Nextcloud
-
 sudo ./src/utilities/configure/configure-php.sh
+```
+
+## Verification
+```bash
+# Check services
+sudo systemctl status apache2
+sudo systemctl status php8.4-fpm
+
+# Check PHP version
+php -v
+```
+
+## Post-Installation (Optional)
+```bash
+# Enable firewall
+sudo ufw allow 'Apache Full'
+sudo ufw allow 'OpenSSH'
+sudo ufw enable
+
+# Install SSL (Let's Encrypt)
+sudo apt install -y certbot python3-certbot-apache
+sudo certbot --apache
+```
