@@ -98,18 +98,32 @@ EOF
     log_info "System limits configured"
     return 0
 }
-
 # Function to configure time synchronization
 configure_time_sync() {
     log_info "Configuring time synchronization..."
     
+    # Check if systemd-timesyncd is masked
+    if systemctl is-enabled systemd-timesyncd 2>&1 | grep -q "masked"; then
+        log_info "Unmasking systemd-timesyncd service..."
+        systemctl unmask systemd-timesyncd
+    fi
+
+    # Install ntp if timedatectl is not available
     if ! command -v timedatectl &> /dev/null; then
         log_warning "timedatectl not found, installing ntp..."
         apt-get update && apt-get install -y ntp
     fi
     
-    timedatectl set-ntp true
-    systemctl restart systemd-timesyncd
+    # Enable and start the time synchronization service
+    if command -v timedatectl &> /dev/null; then
+        timedatectl set-ntp true
+        systemctl enable --now systemd-timesyncd 2>/dev/null || true
+    fi
+    
+    # Verify time synchronization status
+    if command -v timedatectl &> /dev/null; then
+        timedatectl status
+    fi
     
     log_info "Time synchronization configured"
     return 0
