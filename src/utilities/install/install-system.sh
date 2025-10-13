@@ -107,7 +107,7 @@ update_package_lists() {
     if ! DEBIAN_FRONTEND=noninteractive apt-get update -y; then
         log_error "Failed to update package lists"
         return 1
-    }
+    fi
     
     # Upgrade existing packages
     if ! DEBIAN_FRONTEND=noninteractive apt-get upgrade -y; then
