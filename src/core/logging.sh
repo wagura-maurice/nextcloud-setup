@@ -43,6 +43,12 @@ chmod 750 "$log_dir"
 
 # Log a message with timestamp and log level
 log() {
+    # Ensure we have at least a log level and message
+    if [ $# -lt 2 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] log() called with insufficient arguments" >&2
+        return 1
+    fi
+    
     local level="$1"
     local message="$2"
     local exit_code="${3:-}"

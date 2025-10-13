@@ -33,15 +33,36 @@ chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
 # Set default environment file
 ENV_FILE="${PROJECT_ROOT}/.env"
 
-# Load logging module first
+# Set default environment variables
+: "${LOG_LEVEL:="INFO"}"
+: "${PROJECT_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+: "${LOG_DIR:=${PROJECT_ROOT}/logs}"
+: "${LOG_FILE:=${LOG_DIR}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log}"
+
+# Ensure log directory exists
+mkdir -p "${LOG_DIR}"
+chmod 750 "${LOG_DIR}"
+
+# Source logging functions
 if [ -f "${CORE_DIR}/logging.sh" ]; then
     source "${CORE_DIR}/logging.sh"
-    # Initialize logging
-    init_logging
 else
-    echo "Error: logging.sh not found in ${CORE_DIR}" >&2
-    exit 1
+    # Fallback logging if logging.sh fails to load
+    log() {
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$1] ${*:2}" | tee -a "${LOG_FILE}"
+    }
+    log_info() { log "INFO" "$@"; }
+    log_warning() { log "WARNING" "$@"; }
+    log_error() { log "ERROR" "$@"; exit 1; }
+    log_debug() { [ "${LOG_LEVEL}" = "DEBUG" ] && log "DEBUG" "$@"; }
+    
+    log_warning "Using fallback logging - logging.sh not found in ${CORE_DIR}"
 fi
+
+# Initialize logging
+init_logging 2>/dev/null || {
+    log_warning "Failed to initialize logging, using fallback"
+}
 
 # Load common functions
 if [ -f "${CORE_DIR}/common-functions.sh" ]; then
