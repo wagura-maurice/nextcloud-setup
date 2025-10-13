@@ -95,38 +95,6 @@ backup_file() {
     fi
 }
 
-# Check if running as root
-# Exits with E_PERMISSION if not run as root
-check_root() {
-    if [ "$(id -u)" -ne 0 ]; then
-        print_error "This script must be run as root" ${E_PERMISSION}
-    fi
-}
-
-# Check if a command exists in the system PATH
-# Usage: command_exists <command>
-# Returns: 0 if command exists, 1 otherwise
-command_exists() {
-    local cmd="$1"
-    if ! command -v "${cmd}" >/dev/null 2>&1; then
-        print_warning "Command not found: ${cmd}"
-        return ${E_MISSING_DEP}
-    fi
-    return ${E_SUCCESS}
-}
-
-# Ensure required commands are available
-# Usage: require_commands <command1> [command2] ...
-require_commands() {
-    local missing=0
-    for cmd in "$@"; do
-        if ! command_exists "${cmd}"; then
-            print_error "Required command not found: ${cmd}" ${E_MISSING_DEP}
-            missing=$((missing + 1))
-        fi
-    done
-    [ ${missing} -eq 0 ] || exit ${E_MISSING_DEP}
-}
 
 # Check if a process is running
 # Usage: is_process_running <process_name>
@@ -206,20 +174,21 @@ restart_service() {
 
 # Reload a service configuration
 # Usage: reload_service <service_name>
+reload_service() {
     local service="$1"
     
     if ! systemctl list-unit-files "${service}.service" &>/dev/null; then
-        print_warning "Service not found: ${service}.service"
+        log_warning "Service not found: ${service}.service"
         return ${E_ERROR}
     fi
     
-    print_status "Reloading ${service} service configuration..."
+    log_info "Reloading ${service} service configuration..."
     
     if ! systemctl reload "${service}"; then
-        print_error "Failed to reload ${service} service" ${E_ERROR}
+        log_error "Failed to reload ${service} service" ${E_ERROR}
     fi
     
-    print_success "Service ${service} configuration reloaded successfully"
+    log_success "Service ${service} configuration reloaded successfully"
     return ${E_SUCCESS}
 }
 
@@ -283,23 +252,6 @@ disable_service() {
     return ${E_SUCCESS}
 }
 
-# Reload a service if it exists
-reload_service() {
-    local service="$1"
-{{ ... }}
-        print_status "Reloading $service..."
-        systemctl reload "$service"
-    fi
-}
-
-# Enable and start a service
-enable_service() {
-    local service="$1"
-    if systemctl list-unit-files | grep -q "^$service\.service"; then
-        print_status "Enabling and starting $service..."
-        systemctl enable --now "$service"
-    fi
-}
 
 # Check if a file contains a specific string
 file_contains() {
