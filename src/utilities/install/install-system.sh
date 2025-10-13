@@ -139,10 +139,14 @@ install_essential_packages() {
         htop
         ufw
         unattended-upgrades
+    )
+    
+    # These packages might be in different repositories, we'll handle them separately
+    local additional_critical_packages=(
         bzip2
         unzip
         net-tools
-        dnsutils
+        bind9-dnsutils  # Alternative to dnsutils
     )
     
     # Install critical packages
@@ -150,6 +154,33 @@ install_essential_packages() {
         log_error "Failed to install critical packages"
         return 1
     fi
+    
+    # Add universe and multiverse repositories if not already present
+    log_info "Ensuring universe and multiverse repositories are enabled..."
+    for repo in universe multiverse; do
+        if ! grep -q "^deb.*$repo" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
+            log_info "Adding $repo repository..."
+            add-apt-repository -y $repo || {
+                log_warning "Failed to add $repo repository, trying alternative method..."
+                echo "deb http://archive.ubuntu.com/ubuntu/ $(lsb_release -sc) $repo" | tee -a /etc/apt/sources.list
+                echo "deb http://archive.ubuntu.com/ubuntu/ $(lsb_release -sc)-updates $repo" | tee -a /etc/apt/sources.list
+                echo "deb http://security.ubuntu.com/ubuntu/ $(lsb_release -sc)-security $repo" | tee -a /etc/apt/sources.list
+            }
+        fi
+    done
+    
+    # Update package lists after adding repositories
+    if ! DEBIAN_FRONTEND=noninteractive apt-get update -y; then
+        log_warning "Failed to update package lists after adding repositories, continuing anyway..."
+    fi
+    
+    # Now install additional critical packages that might need the repositories we just added
+    log_info "Installing additional critical packages..."
+    for pkg in "${additional_critical_packages[@]}"; do
+        if ! DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "$pkg"; then
+            log_warning "Failed to install critical package: $pkg"
+        fi
+    done
     
     # Now install additional useful packages that might be in universe/multiverse
     local additional_packages=(
