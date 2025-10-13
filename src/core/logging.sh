@@ -15,17 +15,18 @@ readonly LOG_LEVEL_ERROR=3
 
 # Map string log levels to numeric values
 map_log_level() {
-    case "${1^^}" in
-        "DEBUG") echo $LOG_LEVEL_DEBUG ;;
-        "INFO") echo $LOG_LEVEL_INFO ;;
-        "WARNING") echo $LOG_LEVEL_WARNING ;;
-        "ERROR") echo $LOG_LEVEL_ERROR ;;
-        [0-9]*) echo $1 ;;
-        *) echo $LOG_LEVEL_INFO ;;
+    local level="$1"
+    case "${level^^}" in
+        "DEBUG") echo 0 ;;
+        "INFO") echo 1 ;;
+        "WARNING") echo 2 ;;
+        "ERROR") echo 3 ;;
+        [0-9]*) echo "$level" ;;
+        *) echo 1 ;; # Default to INFO
     esac
 }
 
-# Default log level (can be overridden by setting LOG_LEVEL environment variable)
+# Set log level from environment or default to INFO
 LOG_LEVEL_NUM=$(map_log_level "${LOG_LEVEL:-INFO}")
 export LOG_LEVEL_NUM
 
@@ -71,7 +72,7 @@ log() {
     echo "$log_entry" >> "$LOG_FILE"
     
     # Print to console based on log level
-    if [ "$level" -ge "$LOG_LEVEL_NUM" ]; then
+    if [ "$level" -le "$LOG_LEVEL_NUM" ]; then
         case "$level" in
             "$LOG_LEVEL_DEBUG") echo -e "\033[0;36m$log_entry\033[0m" ;;
             "$LOG_LEVEL_INFO") echo -e "\033[0;32m$log_entry\033[0m" ;;
