@@ -221,14 +221,28 @@ EOL
         fi
     done
 
-    # Ensure required directories exist
-    mkdir -p "$LOG_DIR"
-    mkdir -p "$CONFIG_DIR"
-    mkdir -p "$BACKUP_DIR"
+    # Set default backup directory if not set
+    if [ -z "${BACKUP_DIR:-}" ]; then
+        BACKUP_DIR="${PROJECT_ROOT:-/root/nextcloud-setup}/backups"
+        export BACKUP_DIR
+    fi
     
-    # Set permissions
-    chmod 750 "$LOG_DIR"
-    chmod 750 "$BACKUP_DIR"
+    # Ensure required directories exist
+    for dir in "${LOG_DIR:-${PROJECT_ROOT:-/root/nextcloud-setup}/logs}" \
+               "${CONFIG_DIR:-${PROJECT_ROOT:-/root/nextcloud-setup}/config}" \
+               "${BACKUP_DIR}" \
+               "${TEMP_DIR:-/tmp}"; do
+        if [ ! -d "$dir" ]; then
+            mkdir -p "$dir" || {
+                echo "Error: Failed to create directory: $dir" >&2
+                return 1
+            }
+            chmod 750 "$dir" || {
+                echo "Error: Failed to set permissions for: $dir" >&2
+                return 1
+            }
+        fi
+    done
 }
 
 # Export the load_environment function
