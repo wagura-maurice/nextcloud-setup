@@ -42,8 +42,8 @@ mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" 2>/dev/null || {
 chmod 750 "${LOG_DIR}" 2>/dev/null || true
 chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
 
-# Set project root if not already set
-: "${PROJECT_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# Set project root if not already set (go up two levels from core/ to reach project root)
+: "${PROJECT_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
 # Set default environment file
 ENV_FILE="${PROJECT_ROOT}/.env"
@@ -106,7 +106,8 @@ else
     log_error "common-functions.sh not found in ${CORE_DIR}" 1
 fi
 
-# Main environment file (already set at the top of the script)
+# Main environment file
+ENV_FILE="${PROJECT_ROOT}/.env"
 
 # Ensure required directories exist
 mkdir -p "$LOG_DIR"
