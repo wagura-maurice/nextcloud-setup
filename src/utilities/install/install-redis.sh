@@ -25,7 +25,6 @@ readonly REDIS_PACKAGES=(
     "redis-server"
     "redis-tools"
     "redis-sentinel"
-    "redis-benchmark"
 )
 
 # Function to add Redis repository
