@@ -47,13 +47,20 @@
 # Update system packages
 sudo apt update && sudo apt upgrade -y
 
+# Install required tools
+sudo apt install -y git curl wget nano
+
 # Clone the repository
 git clone https://github.com/wagura-maurice/nextcloud-setup.git
 cd nextcloud-setup
 
 # Make all scripts executable
-chmod +x src/utilities/install/*.sh
-chmod +x src/utilities/configure/*.sh
+sudo chmod +x ./prepare-system.sh
+sudo chmod +x src/utilities/install/*.sh
+sudo chmod +x src/utilities/configure/*.sh
+
+# Run system preparation script
+sudo ./prepare-system.sh
 ```
 
 ### 2. Install and Configure System Dependencies
@@ -61,8 +68,6 @@ chmod +x src/utilities/configure/*.sh
 ```bash
 # Install system dependencies
 sudo ./src/utilities/install/install-system.sh
-# Install required tools
-sudo apt install -y git curl wget nano
 
 # Configure system dependencies
 sudo ./src/utilities/configure/configure-system.sh
