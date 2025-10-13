@@ -249,7 +249,7 @@ load_installation_config() {
         SSL_STATE="${SSL_STATE:-Nairobi}"
         SSL_LOCALITY="${SSL_LOCALITY:-Nairobi}"
         SSL_ORG="${SSL_ORG:-e-Granary}"
-        SSL_OU="${SSL_OU:-IT_Dept}"
+        SSL_OU='${SSL_OU:-ICT Department}'
     "
     
     # Create config directory if it doesn't exist
