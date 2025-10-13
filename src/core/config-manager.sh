@@ -246,10 +246,10 @@ load_installation_config() {
         SSL_ENABLED="${SSL_ENABLED:-true}"
         SSL_EMAIL="${SSL_EMAIL:-admin@example.com}"
         SSL_COUNTRY="${SSL_COUNTRY:-US}"
-        SSL_STATE="${SSL_STATE:-California}"
-        SSL_LOCALITY="${SSL_LOCALITY:-San Francisco}"
-        SSL_ORG="${SSL_ORG:-Nextcloud}"
-        SSL_OU="${SSL_OU:-IT Department}"
+        SSL_STATE="${SSL_STATE:-'California'}"
+        SSL_LOCALITY="${SSL_LOCALITY:-'San Francisco'}"
+        SSL_ORG="${SSL_ORG:-'Nextcloud'}"
+        SSL_OU="${SSL_OU:-'IT Department'}"
     "
     
     # Create config directory if it doesn't exist
