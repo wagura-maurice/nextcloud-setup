@@ -135,9 +135,21 @@ log() {
 }
 
 # Log level functions
-log_debug() { [ "${LOG_LEVEL_NUM:-1}" -le ${LOG_LEVEL_DEBUG} ] && log "DEBUG" "$@"; }
-log_warning() { [ "${LOG_LEVEL_NUM:-1}" -le ${LOG_LEVEL_WARNING} ] && log "WARNING" "$@"; }
-log_error() { log "ERROR" "$@" 1; }
+log_debug() { 
+    [ "${LOG_LEVEL_NUM:-${LOG_LEVEL_INFO:-1}}" -le "${LOG_LEVEL_DEBUG:-0}" ] && log "DEBUG" "$@" 
+}
+
+log_info() { 
+    [ "${LOG_LEVEL_NUM:-${LOG_LEVEL_INFO:-1}}" -le "${LOG_LEVEL_INFO:-1}" ] && log "INFO" "$@" 
+}
+
+log_warning() { 
+    [ "${LOG_LEVEL_NUM:-${LOG_LEVEL_INFO:-1}}" -le "${LOG_LEVEL_WARNING:-2}" ] && log "WARNING" "$@" 
+}
+
+log_error() { 
+    log "ERROR" "$@" 1 
+}
 
 # Run a command and log the output
 run_command() {
@@ -160,31 +172,42 @@ run_command() {
 init_logging() {
     # Ensure LOG_FILE is set
     : "${LOG_FILE:=${LOG_DIR:-/tmp}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log}"
+    export LOG_FILE
     
     # Create log directory if it doesn't exist
-    local log_dir="$(dirname "$LOG_FILE")"
-    mkdir -p "$log_dir" || {
-        echo "Failed to create log directory: $log_dir" >&2
+    local log_dir="$(dirname "$LOG_FILE" 2>/dev/null || echo '/tmp')"
+    mkdir -p "$log_dir" 2>/dev/null || {
+        echo "[$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')] [ERROR] Failed to create log directory: $log_dir" >&2
         return 1
     }
     
     # Create log file with appropriate permissions
     if ! touch "$LOG_FILE" 2>/dev/null; then
-        echo "Failed to create log file: $LOG_FILE" >&2
+        echo "[$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')] [WARNING] Failed to create log file: $LOG_FILE" >&2
         LOG_FILE="/tmp/nextcloud-setup-$(date +%s).log"
-        touch "$LOG_FILE" || {
-            echo "Failed to create fallback log file: $LOG_FILE" >&2
+        export LOG_FILE
+        if ! touch "$LOG_FILE" 2>/dev/null; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')] [ERROR] Failed to create fallback log file: $LOG_FILE" >&2
             return 1
-        }
+        fi
     fi
     
     chmod 640 "$LOG_FILE" 2>/dev/null || true
     
+    # Get a timestamp for the log entries
+    local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')"
+    
     # Log script start
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] === Logging initialized ===" >> "$LOG_FILE"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Project Root: ${PROJECT_ROOT:-Not set}" >> "$LOG_FILE"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Log file: ${LOG_FILE}" >> "$LOG_FILE"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Log level: ${LOG_LEVEL:-INFO} (${LOG_LEVEL_NUM:-1})" >> "$LOG_FILE"
+    {
+        echo "[${timestamp}] [INFO] === Logging initialized ==="
+        echo "[${timestamp}] [INFO] Project Root: ${PROJECT_ROOT:-Not set}"
+        echo "[${timestamp}] [INFO] Log file: ${LOG_FILE}"
+        echo "[${timestamp}] [INFO] Log level: ${LOG_LEVEL:-INFO} (${LOG_LEVEL_NUM:-1})"
+    } >> "$LOG_FILE" 2>/dev/null || {
+        echo "[${timestamp}] [ERROR] Failed to write to log file: $LOG_FILE" >&2
+        return 1
+    }
     
     return 0
 }
@@ -260,4 +283,5 @@ log_success() {
     log_info "$message"
 }
 
-export -f log_debug log_info log_warning log_error log_section log_success run_command init_logging
+# Export the log function and its variants
+export -f log log_debug log_info log_warning log_error run_command
