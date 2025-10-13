@@ -107,21 +107,28 @@ log() {
         
         # Ensure LOG_FILE is set and writable
         if [ -z "${LOG_FILE:-}" ]; then
+            local fallback_timestamp
+            fallback_timestamp="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')"
             LOG_FILE="/tmp/nextcloud-setup-$(date +%s).log"
-            echo "[${log_timestamp}] [WARNING] LOG_FILE not set, using fallback: ${LOG_FILE}" >&2
+            echo "[${fallback_timestamp}] [WARNING] LOG_FILE not set, using fallback: ${LOG_FILE}" >&2
         fi
         
         # Create log directory if it doesn't exist
         local log_dir
+        local timestamp
+        timestamp="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')"
         log_dir="$(dirname "${LOG_FILE}" 2>/dev/null || echo '/tmp')"
         mkdir -p "${log_dir}" 2>/dev/null || {
-            echo "[${log_timestamp}] [ERROR] Failed to create log directory: ${log_dir}" >&2
+            echo "[${timestamp}] [ERROR] Failed to create log directory: ${log_dir}" >&2
             return 1
         }
         
         # Write to log file
         if ! echo "${log_entry}" >> "${LOG_FILE}" 2>/dev/null; then
-            echo "[${log_timestamp}] [ERROR] Failed to write to log file: ${LOG_FILE}" >&2
+            # Use a new timestamp for the error message to ensure it's always set
+            local err_timestamp
+            err_timestamp="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')"
+            echo "[${err_timestamp}] [ERROR] Failed to write to log file: ${LOG_FILE}" >&2
             return 1
         fi
     fi
@@ -134,17 +141,20 @@ log() {
     return 0
 }
 
-# Log level functions
+# Log level functions with proper variable initialization
 log_debug() { 
-    [ "${LOG_LEVEL_NUM:-${LOG_LEVEL_INFO:-1}}" -le "${LOG_LEVEL_DEBUG:-0}" ] && log "DEBUG" "$@" 
+    local level_num="${LOG_LEVEL_NUM:-${LOG_LEVEL_INFO:-1}}"
+    [ "${level_num}" -le "${LOG_LEVEL_DEBUG:-0}" ] && log "DEBUG" "$@" 
 }
 
 log_info() { 
-    [ "${LOG_LEVEL_NUM:-${LOG_LEVEL_INFO:-1}}" -le "${LOG_LEVEL_INFO:-1}" ] && log "INFO" "$@" 
+    local level_num="${LOG_LEVEL_NUM:-${LOG_LEVEL_INFO:-1}}"
+    [ "${level_num}" -le "${LOG_LEVEL_INFO:-1}" ] && log "INFO" "$@" 
 }
 
 log_warning() { 
-    [ "${LOG_LEVEL_NUM:-${LOG_LEVEL_INFO:-1}}" -le "${LOG_LEVEL_WARNING:-2}" ] && log "WARNING" "$@" 
+    local level_num="${LOG_LEVEL_NUM:-${LOG_LEVEL_INFO:-1}}"
+    [ "${level_num}" -le "${LOG_LEVEL_WARNING:-2}" ] && log "WARNING" "$@" 
 }
 
 log_error() { 
