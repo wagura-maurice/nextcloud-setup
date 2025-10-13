@@ -33,14 +33,21 @@ chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
 # Set default environment file
 ENV_FILE="${PROJECT_ROOT}/.env"
 
-# Load common functions if not already loaded
-if ! type -t log_info >/dev/null 2>&1; then
-    if [ -f "${CORE_DIR}/common-functions.sh" ]; then
-        source "${CORE_DIR}/common-functions.sh"
-    else
-        echo "Error: common-functions.sh not found in ${CORE_DIR}" >&2
-        exit 1
-    fi
+# Load logging module first
+if [ -f "${CORE_DIR}/logging.sh" ]; then
+    source "${CORE_DIR}/logging.sh"
+    # Initialize logging
+    init_logging
+else
+    echo "Error: logging.sh not found in ${CORE_DIR}" >&2
+    exit 1
+fi
+
+# Load common functions
+if [ -f "${CORE_DIR}/common-functions.sh" ]; then
+    source "${CORE_DIR}/common-functions.sh"
+else
+    log_error "common-functions.sh not found in ${CORE_DIR}" 1
 fi
 
 # Main environment file

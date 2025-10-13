@@ -39,21 +39,37 @@ fi
 export SRC_DIR CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR
 
 # Create required directories with proper permissions
-mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
-chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
-
-# Add project utilities to PATH
-export PATH="${UTILS_DIR}:${PATH}"
+mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
+chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
 
 # Set default environment variables
 export LOG_LEVEL="${LOG_LEVEL:-INFO}"
 export LOG_FILE="${LOG_DIR}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log"
 
+# Add project utilities to PATH
+export PATH="${UTILS_DIR}:${PATH}"
+
 # Ensure we have a clean environment
 unset CDPATH
 
-# Log initialization
-exec > >(tee -a "${LOG_FILE}") 2>&1
+# Initialize logging first
+if [ -f "${CORE_DIR}/logging.sh" ]; then
+    source "${CORE_DIR}/logging.sh"
+    init_logging
+    log_info "=== Starting Nextcloud Setup ==="
+    log_info "Project Root: ${PROJECT_ROOT}"
+    log_info "Log File: ${LOG_FILE}"
+else
+    echo "Error: Failed to load logging module" >&2
+    exit 1
+fi
+
+# Load environment
+if [ -f "${CORE_DIR}/env-loader.sh" ]; then
+    source "${CORE_DIR}/env-loader.sh"
+else
+    log_error "env-loader.sh not found in ${CORE_DIR}" 1
+fi
 
 # Set default log level if not set
 export LOG_LEVEL=${LOG_LEVEL:-INFO}

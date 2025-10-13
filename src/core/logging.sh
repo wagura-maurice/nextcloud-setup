@@ -43,11 +43,20 @@ init_logging() {
     touch "$LOG_FILE"
     chmod 640 "$LOG_FILE"
     
+    # Redirect output to log file and console
+    exec > >(tee -a "$LOG_FILE") 2>&1
+    
     # Log script start
     log_info "=== Logging initialized ==="
+    log_info "Project Root: ${PROJECT_ROOT:-Not set}"
     log_info "Log file: $LOG_FILE"
     log_info "Log level: ${LOG_LEVEL} (${LOG_LEVEL_NUM})"
+    
+    return 0
 }
+
+# Export the logging functions
+export -f init_logging log_info log_warning log_error log_debug run_command
 
 # Log a message with timestamp and log level
 # Usage: log <level> <message> [exit_code]
