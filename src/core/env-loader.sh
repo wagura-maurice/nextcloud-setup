@@ -25,6 +25,7 @@ fi
 : "${LOG_DIR:=${PROJECT_ROOT}/logs}"
 : "${CONFIG_DIR:=${PROJECT_ROOT}/config}"
 : "${DATA_DIR:=${PROJECT_ROOT}/data}"
+: "${ENV_FILE:=${PROJECT_ROOT}/.env}"
 
 # Set default log file if not already set
 : "${LOG_FILE:=${LOG_DIR}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log}"
