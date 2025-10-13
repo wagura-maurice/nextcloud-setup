@@ -51,6 +51,7 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install -y git curl wget nano
 
 # Clone the repository
+rm -rf nextcloud-setup
 git clone https://github.com/wagura-maurice/nextcloud-setup.git
 cd nextcloud-setup
 
