@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Load core configuration and utilities
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CORE_DIR="${SCRIPT_DIR}/core"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CORE_DIR="${SCRIPT_DIR}/src/core"
 
 # Source core utilities
 source "${CORE_DIR}/config-manager.sh"
