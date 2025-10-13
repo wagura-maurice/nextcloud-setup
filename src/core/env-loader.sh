@@ -15,7 +15,10 @@ fi
 # Set project root relative to script directory
 if [ -z "${PROJECT_ROOT:-}" ]; then
     PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../" && pwd)"
+    export PROJECT_ROOT
 fi
+
+# Set default directories
 : "${SRC_DIR:=${PROJECT_ROOT}/src}"
 : "${CORE_DIR:=${SRC_DIR}/core}"
 : "${UTILS_DIR:=${SRC_DIR}/utilities}"
@@ -23,11 +26,20 @@ fi
 : "${CONFIG_DIR:=${PROJECT_ROOT}/config}"
 : "${DATA_DIR:=${PROJECT_ROOT}/data}"
 
+# Set default log file if not already set
+: "${LOG_FILE:=${LOG_DIR}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log}"
+
 # Export all paths
 export PROJECT_ROOT SRC_DIR CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR
 
-# Ensure required directories exist
-mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
+# Ensure required directories exist with proper permissions
+mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" 2>/dev/null || {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] Failed to create required directories" >&2
+    return 1
+}
+
+# Set proper permissions for log directory
+chmod 750 "${LOG_DIR}" 2>/dev/null || true
 chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
 
 # Set default environment file
