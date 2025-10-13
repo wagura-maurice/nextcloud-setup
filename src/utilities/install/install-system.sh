@@ -40,160 +40,86 @@ log_section "System Dependencies Installation"
 if ! load_installation_config; then
     log_error "Failed to load installation configuration"
     exit 1
-fi
-
-# Configuration
-readonly PACKAGE_MANAGER="apt-get"
-readonly INSTALL_OPTS="-y --no-install-recommends"
-
-# Define required packages based on configuration
-REQUIRED_PACKAGES=(
-    # System utilities
-    apt-transport-https ca-certificates curl gnupg lsb-release
-    software-properties-common unzip wget htop net-tools vim
-    git jq supervisor logrotate cron rsync fail2ban ufw
-    locales tzdata acl sudo
-    
-    # Build essentials
-    build-essential pkg-config autoconf automake libtool make g++
-    
-    # SSL/TLS
-    openssl ssl-cert python3-pip
-    
-    # Monitoring
-    dstat iotop iftop nmon sysstat lsof strace lshw hdparm smartmontools
-)
-
-# Add database packages based on configuration
-if [ "${DB_TYPE:-mysql}" = "mysql" ]; then
-    REQUIRED_PACKAGES+=(
-        mysql-server
-        mysql-client
-        libmysqlclient-dev
-    )
-else
-    REQUIRED_PACKAGES+=(
-        postgresql
-        postgresql-contrib
-        postgresql-client
-        libpq-dev
-    )
-fi
-
-# Add web server packages
-if [ "${WEB_SERVER:-apache}" = "apache" ]; then
-    REQUIRED_PACKAGES+=(
-        apache2
-        libapache2-mod-php${PHP_VERSION}
-        libapache2-mod-security2
-    )
-else
-    REQUIRED_PACKAGES+=(
-        nginx
-        php${PHP_VERSION}-fpm
-    )
-fi
-
-# Add PHP packages
-REQUIRED_PACKAGES+=(
-    php${PHP_VERSION}
-    php${PHP_VERSION}-common
-    php${PHP_VERSION}-mysql
-    php${PHP_VERSION}-gd
-    php${PHP_VERSION}-xml
-    php${PHP_VERSION}-curl
-    php${PHP_VERSION}-mbstring
-    php${PHP_VERSION}-intl
-    php${PHP_VERSION}-zip
-    php${PHP_VERSION}-bcmath
-    php${PHP_VERSION}-imagick
-    php${PHP_VERSION}-gmp
-    php${PHP_VERSION}-apcu
-    php${PHP_VERSION}-redis
-    php${PHP_VERSION}-opcache
-    php${PHP_VERSION}-cli
-    php${PHP_VERSION}-bz2
-    php${PHP_VERSION}-soap
-)
-
-# Function to install packages with error handling
 install_packages() {
     local packages=("$@")
-    log_info "Installing packages: ${packages[*]}"
+    local batch_size=10
+    local i=0
     
-    if ! ${PACKAGE_MANAGER} install ${INSTALL_OPTS} "${packages[@]}"; then
-        log_error "Failed to install packages"
-        return 1
-    fi
+    while [ $i -lt ${#packages[@]} ]; do
+        local batch=("${packages[@]:$i:$batch_size}")
+        log_info "Installing package batch: ${batch[*]}"
+        
+        if ! DEBIAN_FRONTEND=noninteractive ${PACKAGE_MANAGER} install -y --no-install-recommends "${batch[@]}"; then
+            log_warning "Failed to install a batch of packages. Retrying individually..."
+            
+            # Try installing packages one by one
+            for pkg in "${batch[@]}"; do
+                log_info "Attempting to install: $pkg"
+                if ! DEBIAN_FRONTEND=noninteractive ${PACKAGE_MANAGER} install -y --no-install-recommends "$pkg"; then
+                    log_error "Failed to install package: $pkg"
+                    return 1
+                fi
+            done
+        fi
+        
+        i=$((i + batch_size))
+    done
     
     return 0
 }
 
 # Function to update package lists
-update_package_lists() {
-    log_info "Updating package lists..."
-    if ! ${PACKAGE_MANAGER} update; then
-        log_error "Failed to update package lists"
-        return 1
-    fi
-    return 0
-}
-
-# Function to configure firewall
-configure_firewall() {
-    log_info "Configuring firewall..."
-    
-    # Allow SSH, HTTP, HTTPS
-    for port in 22 80 443; do
-        if ! ufw allow "${port}" >/dev/null 2>&1; then
-            log_warning "Failed to allow port ${port} in firewall"
-        fi
-    done
-    
-    # Enable firewall
-    if ! ufw --force enable >/dev/null 2>&1; then
-        log_warning "Failed to enable UFW"
-    fi
-}
-
-# Function to clean up
-cleanup() {
-    log_info "Cleaning up..."
-    ${PACKAGE_MANAGER} autoremove -y
-    ${PACKAGE_MANAGER} clean
+{{ ... }}
     rm -rf /var/lib/apt/lists/*
 }
 
 # Main installation function
 install_system_dependencies() {
-    local success=true
+    log_section "Installing system dependencies"
     
     # Update package lists
     if ! update_package_lists; then
-        success=false
-    fi
+        log_error "Failed to update package lists"
+        return 1
+    }
     
-    # Install required packages
-    if ! install_packages "${REQUIRED_PACKAGES[@]}"; then
-        success=false
-    fi
+    # Install packages in logical groups
+    log_info "Installing system packages..."
+    if ! install_packages "${SYSTEM_PACKAGES[@]}"; then
+        log_error "Failed to install system packages"
+        return 1
+    }
+    
+    log_info "Installing monitoring tools..."
+    if ! install_packages "${MONITORING_TOOLS[@]}"; then
+        log_warning "Some monitoring tools failed to install, but continuing..."
+    }
+    
+    log_info "Installing database packages..."
+    if ! install_packages "${DATABASE_PACKAGES[@]}"; then
+        log_error "Failed to install database packages"
+        return 1
+    }
+    
+    log_info "Installing web server packages..."
+    if ! install_packages "${WEB_SERVER_PACKAGES[@]}"; then
+        log_error "Failed to install web server packages"
+        return 1
+    }
+    
+    log_info "Installing PHP and extensions..."
+    if ! install_packages "${PHP_PACKAGES[@]}"; then
+        log_error "Failed to install PHP packages"
+        return 1
+    }
     
     # Configure firewall
     if ! configure_firewall; then
-        success=false
-    fi
+        log_warning "Failed to configure firewall. Continuing..."
+    }
     
-    # Clean up
-    cleanup
-    
-    # Final status
-    if [ "${success}" = true ]; then
-        log_success "System dependencies installation completed successfully"
-        return 0
-    else
-        log_error "System dependencies installation completed with errors"
-        return 1
-    fi
+    log_success "System dependencies installed successfully"
+    return 0
 }
 
 # Main execution
