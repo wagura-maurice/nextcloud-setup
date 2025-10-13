@@ -192,7 +192,7 @@ install_system_dependencies() {
     # Setup required repositories first
     if ! setup_repositories; then
         log_warning "Failed to setup all repositories, some packages might not be available"
-    }
+    fi
     
     # Update package lists
     if ! update_package_lists; then
