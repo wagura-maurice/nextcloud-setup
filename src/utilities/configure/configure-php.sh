@@ -1,11 +1,24 @@
 #!/bin/bash
 set -euo pipefail
 
-# Load core configuration and utilities
+# Set project root and core directories
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "${SCRIPT_DIR}/core/config-manager.sh"
-source "${SCRIPT_DIR}/core/env-loader.sh"
-source "${SCRIPT_DIR}/core/logging.sh"
+PROJECT_ROOT="${SCRIPT_DIR}"
+CORE_DIR="${PROJECT_ROOT}/src/core"
+
+# Source core utilities
+source "${CORE_DIR}/config-manager.sh" 2>/dev/null || {
+    echo "Error: Failed to load ${CORE_DIR}/config-manager.sh" >&2
+    exit 1
+}
+source "${CORE_DIR}/env-loader.sh" 2>/dev/null || {
+    echo "Error: Failed to load ${CORE_DIR}/env-loader.sh" >&2
+    exit 1
+}
+source "${CORE_DIR}/logging.sh" 2>/dev/null || {
+    echo "Error: Failed to load ${CORE_DIR}/logging.sh" >&2
+    exit 1
+}
 
 # Initialize environment and logging
 load_environment
