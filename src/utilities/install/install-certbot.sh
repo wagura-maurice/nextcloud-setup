@@ -2,15 +2,14 @@
 set -euo pipefail
 
 # Set project root and core directories
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # Points to utilities directory
+PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"  # Points to src directory
 CORE_DIR="${PROJECT_ROOT}/core"
-SRC_DIR="${PROJECT_ROOT}/src"
-UTILS_DIR="${SRC_DIR}/utilities"
-LOG_DIR="${PROJECT_ROOT}/logs"
-CONFIG_DIR="${PROJECT_ROOT}/config"
-DATA_DIR="${PROJECT_ROOT}/data"
-ENV_FILE="${PROJECT_ROOT}/.env"
+UTILS_DIR="${SCRIPT_DIR}"  # Current directory is utilities
+LOG_DIR="${PROJECT_ROOT}/../logs"
+CONFIG_DIR="${PROJECT_ROOT}/../config"
+DATA_DIR="${PROJECT_ROOT}/../data"
+ENV_FILE="${PROJECT_ROOT}/../.env"
 
 # Export environment variables
 export PROJECT_ROOT CORE_DIR SRC_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR ENV_FILE
