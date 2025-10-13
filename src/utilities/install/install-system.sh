@@ -1,10 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
+# Set project root directory
+PROJECT_ROOT="/root/nextcloud-setup"
+
 # Load core configuration and utilities
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "${SCRIPT_DIR}/core/config-manager.sh"
-source "${SCRIPT_DIR}/core/logging.sh"
+source "${PROJECT_ROOT}/src/core/config-manager.sh"
+source "${PROJECT_ROOT}/src/core/logging.sh"
 
 # Initialize environment and logging
 load_environment
