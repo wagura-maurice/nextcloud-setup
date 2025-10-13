@@ -22,7 +22,8 @@ set -o nounset    # Exit on undefined variables
 set -o pipefail   # Ensure pipeline commands are checked for failures
 set -o noclobber  # Prevent overwriting existing files with >
 # Global configuration
-readonly SCRIPT_NAME=$(basename "${0}")
+# Only set SCRIPT_NAME if not already set
+: "${SCRIPT_NAME:=$(basename "${0}")}"
 : "${SCRIPT_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 : "${PROJECT_ROOT:=$(dirname "$SCRIPT_DIR")}"
 

@@ -35,6 +35,7 @@ ENV_FILE="${PROJECT_ROOT}/.env"
 
 # Set default environment variables
 : "${PROJECT_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+: "${SCRIPT_NAME:=${0##*/}}"  # Set default script name if not already set
 : "${SRC_DIR:=${PROJECT_ROOT}/src}"
 : "${CORE_DIR:=${SRC_DIR}/core}"
 : "${UTILS_DIR:=${SRC_DIR}/utilities}"
