@@ -1,6 +1,7 @@
 # Nextcloud Setup Guide
 
 ## Initial Setup
+
 ```bash
 # Update and install required tools
 sudo apt update && sudo apt upgrade -y
@@ -16,14 +17,15 @@ cd nextcloud-setup
 
 # Make scripts executable
 sudo chmod +x prepare-system.sh
-sudo chmod +x src/utilities/install/*.sh
-sudo chmod +x src/utilities/configure/*.sh
+sudo chmod +x src/utilities/install/install-system.sh
+sudo chmod +x src/utilities/configure/configure-system.sh
 
 # Run system preparation
 sudo ./prepare-system.sh
 ```
 
 ## Installation
+
 ```bash
 # System setup
 sudo ./src/utilities/install/install-system.sh
@@ -39,6 +41,7 @@ sudo ./src/utilities/configure/configure-php.sh
 ```
 
 ## Verification
+
 ```bash
 # Check services
 sudo systemctl status apache2
@@ -49,6 +52,7 @@ php -v
 ```
 
 ## Post-Installation (Optional)
+
 ```bash
 # Enable firewall
 sudo ufw allow 'Apache Full'

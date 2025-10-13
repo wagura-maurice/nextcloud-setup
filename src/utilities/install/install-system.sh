@@ -2,10 +2,10 @@
 set -euo pipefail
 
 # Set project root and core directories
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROJECT_ROOT="${SCRIPT_DIR}"
-CORE_DIR="${PROJECT_ROOT}/src/core"
-SRC_DIR="${PROJECT_ROOT}/src"
+CORE_DIR="${PROJECT_ROOT}/core"
+SRC_DIR="${PROJECT_ROOT}"
 UTILS_DIR="${SRC_DIR}/utilities"
 LOG_DIR="${PROJECT_ROOT}/logs"
 CONFIG_DIR="${PROJECT_ROOT}/config"
