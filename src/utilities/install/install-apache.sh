@@ -12,30 +12,56 @@ CONFIG_DIR="${PROJECT_ROOT}/config"
 DATA_DIR="${PROJECT_ROOT}/data"
 ENV_FILE="${PROJECT_ROOT}/.env"
 
+# Ensure ENV_FILE exists in the correct location
+if [ ! -f "${ENV_FILE}" ] && [ -f "${SRC_DIR}/.env" ]; then
+    # Move .env from src/ to project root if it exists there
+    mv "${SRC_DIR}/.env" "${ENV_FILE}" 2>/dev/null || true
+fi
+
 # Export environment variables
 export PROJECT_ROOT CORE_DIR SRC_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR ENV_FILE
 
-# Create required directories
-mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
-chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
+# Create required directories with error handling
+for dir in "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"; do
+    if [ ! -d "${dir}" ]; then
+        mkdir -p "${dir}" || {
+            echo "Error: Failed to create directory ${dir}" >&2
+            exit 1
+        }
+        chmod 750 "${dir}" || {
+            echo "Error: Failed to set permissions for ${dir}" >&2
+            exit 1
+        }
+    fi
+done
 
-# Source core utilities
-source "${CORE_DIR}/config-manager.sh" 2>/dev/null || { 
-    echo "Error: Failed to load ${CORE_DIR}/config-manager.sh" >&2
-    exit 1
+# Function to safely source core utilities
+safe_source() {
+    local file="$1"
+    if [ -f "${file}" ]; then
+        # shellcheck source=/dev/null
+        source "${file}" || {
+            echo "Error: Failed to load ${file}" >&2
+            return 1
+        }
+    else
+        echo "Error: Required file not found: ${file}" >&2
+        return 1
+    fi
 }
-source "${CORE_DIR}/env-loader.sh" 2>/dev/null || { 
-    echo "Error: Failed to load ${CORE_DIR}/env-loader.sh" >&2
+
+# Source core utilities with error handling
+if ! safe_source "${CORE_DIR}/config-manager.sh" || \
+   ! safe_source "${CORE_DIR}/env-loader.sh" || \
+   ! safe_source "${CORE_DIR}/logging.sh"; then
     exit 1
-}
-source "${CORE_DIR}/logging.sh" 2>/dev/null || { 
-    echo "Error: Failed to load ${CORE_DIR}/logging.sh" >&2
-    exit 1
-}
+fi
 
 # Initialize environment and logging
-load_environment
-init_logging
+if ! load_environment || ! init_logging; then
+    echo "Error: Failed to initialize environment and logging" >&2
+    exit 1
+fi
 
 log_section "Apache Installation"
 
@@ -45,13 +71,22 @@ install_php() {
     
     local php_script="${UTILS_DIR}/install/install-php.sh"
     
-    if [ -f "$php_script" ]; then
-        if ! bash "$php_script"; then
-            log_error "Failed to install PHP"
+    if [ ! -f "${php_script}" ]; then
+        log_error "PHP installation script not found at ${php_script}"
+        return 1
+    fi
+    
+    # Make sure the script is executable
+    if [ ! -x "${php_script}" ]; then
+        chmod +x "${php_script}" || {
+            log_error "Failed to make PHP installation script executable"
             return 1
-        fi
-    else
-        log_error "PHP installation script not found at $php_script"
+        }
+    fi
+    
+    # Execute with full path and handle errors
+    if ! "${php_script}"; then
+        log_error "PHP installation failed"
         return 1
     fi
     
