@@ -193,16 +193,25 @@ chmod 750 "$(dirname "$NEXTCLOUD_DATA_DIR")"
 # Define component installation and configuration order
 INSTALL_ORDER=(
     "system"
-    "webserver"
+    "apache"
     "php"
-    "database"
+    "mariadb"
     "redis"
     "nextcloud"
+    "certbot"
 )
 
-# Let's Encrypt is optional and should be installed separately
-LETSENCRYPT_COMPONENT="letsencrypt"
-
+# Configuration order (includes cron at the end)
+CONFIG_ORDER=(
+    "system"
+    "apache"
+    "php"
+    "mariadb"
+    "redis"
+    "nextcloud"
+    "certbot"
+    "cron"
+)
 # Show usage information
 show_usage() {
     echo "Nextcloud CLI - Unified Interface for Nextcloud Setup and Maintenance"
@@ -219,12 +228,22 @@ show_usage() {
     echo ""
     echo "Installation Order:"
     echo "  1. system"
-    echo "  2. webserver (Apache/Nginx)"
+    echo "  2. apache"
     echo "  3. php"
-    echo "  4. database (MySQL/MariaDB)"
+    echo "  4. mariadb"
     echo "  5. redis"
     echo "  6. nextcloud"
-    echo "  7. $LETSENCRYPT (optional, run separately)"
+    echo "  7. certbot"
+    echo ""
+    echo "Configuration Order:"
+    echo "  1. system"
+    echo "  2. apache"
+    echo "  3. php"
+    echo "  4. mariadb"
+    echo "  5. redis"
+    echo "  6. nextcloud"
+    echo "  7. certbot"
+    echo "  8. cron"
     echo ""
 
 # Update Nextcloud
@@ -239,40 +258,50 @@ is_component_installed() {
     
     case $component in
         system)
-            # Check for basic system utilities
+            # Check for essential system utilities and services
             command -v apt-get >/dev/null 2>&1 && \
-            command -v systemctl >/dev/null 2>&1
+            command -v systemctl >/dev/null 2>&1 && \
+            systemctl is-active --quiet cron && \
+            systemctl is-active --quiet fail2ban && \
+            systemctl is-active --quiet ufw
             ;;
-        webserver)
-            # Check for Apache
+        apache)
+            # Check for Apache installation and service
+            command -v apache2 >/dev/null 2>&1 && \
             systemctl is-active --quiet apache2 2>/dev/null
             ;;
         php)
-            # Check for PHP-FPM
-            systemctl is-active --quiet php*-fpm 2>/dev/null
+            # Check for PHP and PHP-FPM
+            local php_version=$(php -v 2>/dev/null | grep -oP '^PHP \K[0-9]+\.[0-9]+')
+            [ -n "$php_version" ] && \
+            systemctl is-active --quiet "php${php_version}-fpm" 2>/dev/null
             ;;
-        database)
-            # Check for MariaDB
-            command -v mariadb >/dev/null 2>&1 && \
+        mariadb)
+            # Check for MariaDB/MySQL
+            (command -v mariadb >/dev/null 2>&1 || command -v mysql >/dev/null 2>&1) && \
             systemctl is-active --quiet mariadb 2>/dev/null
             ;;
-        nextcloud)
-{{ ... }}
-            systemctl is-active --quiet 'php*-fpm' 2>/dev/null
-            ;;
-        database)
-            systemctl is-active --quiet mariadb 2>/dev/null
+        redis)
+            # Check for Redis
+            command -v redis-cli >/dev/null 2>&1 && \
+            systemctl is-active --quiet redis-server 2>/dev/null
             ;;
         nextcloud)
-            # Check if web server is running and can access Nextcloud
-            local url="http://localhost/status.php"
-            curl -s -f "$url" | grep -q 'installed.*true' 2>/dev/null
+            # Check for Nextcloud installation
+            local nc_root="${NEXTCLOUD_ROOT:-/var/www/nextcloud}"
+            [ -f "${nc_root}/occ" ] && [ -d "${nc_root}/apps" ]
             ;;
-            # Check if certbot is installed and has certificates
-            (command -v certbot >/dev/null 2>&1 || command -v certbot-auto >/dev/null 2>&1) && \
-            [[ -n $(find /etc/letsencrypt/live -name '*.pem' 2>/dev/null) ]]
+        certbot)
+            # Check for certbot installation
+            (command -v certbot >/dev/null 2>&1 || command -v certbot-auto >/dev/null 2>&1)
             ;;
-        *) return 1 ;;
+        cron)
+            # Check for cron service
+            systemctl is-active --quiet cron 2>/dev/null
+            ;;
+        *)
+            return 1
+            ;;
     esac
     
     return $?
@@ -283,74 +312,258 @@ is_component_configured() {
     local component=$1
     
     case $component in
-        system) return 0 ;;  # System is always considered configured
-        webserver)
-            # Check for valid web server configuration
+        system)
+            # Check for essential system services and configurations
+            systemctl is-active --quiet cron && \
+            systemctl is-active --quiet fail2ban && \
+            systemctl is-active --quiet ufw && \
+            [ "$(cat /proc/sys/vm/swappiness)" -le 10 ] 2>/dev/null
+            ;;
+        apache)
+            # Check for valid Apache configuration and modules
             if systemctl is-active --quiet apache2 2>/dev/null; then
-                apache2ctl -t >/dev/null 2>&1
+                local apache_status=0
+                apache2ctl -t >/dev/null 2>&1 || apache_status=$?
+                [ $apache_status -eq 0 ] && \
+                apache2ctl -M 2>/dev/null | grep -q 'rewrite_module' && \
+                apache2ctl -M 2>/dev/null | grep -q 'headers_module'
             else
                 return 1
             fi
             ;;
         php)
-            # Check for required PHP extensions
-            local required_extensions=("mysqli" "pdo_mysql" "gd" "xml" "curl" "mbstring" "intl" "zip" "imagick")
+            # Check for required PHP extensions and settings
+            local required_extensions=(
+                "mysqli" "pdo_mysql" "gd" "xml" "curl" 
+                "mbstring" "intl" "zip" "imagick" "redis"
+                "apcu" "bcmath" "exif" "ftp" "bz2" "opcache"
+            )
             local missing_extensions=()
             
+            # Check PHP extensions
             for ext in "${required_extensions[@]}"; do
                 if ! php -m | grep -q -i "^${ext}$"; then
                     missing_extensions+=("$ext")
                 fi
             done
             
-            [[ ${#missing_extensions[@]} -eq 0 ]]
+            # Check PHP settings
+            local php_ini=$(php --ini | grep 'Loaded Configuration File' | awk '{print $4}')
+            local upload_max=$(php -r "echo ini_get('upload_max_filesize');")
+            local post_max=$(php -r "echo ini_get('post_max_size');")
+            local memory_limit=$(php -r "echo ini_get('memory_limit');")
+            
+            [[ ${#missing_extensions[@]} -eq 0 && 
+               -n "$php_ini" && 
+               -n "$upload_max" && 
+               -n "$post_max" && 
+               -n "$memory_limit" ]]
             ;;
-        database)
-            # Check if Nextcloud database exists and is accessible
-            if [[ -f "$PROJECT_ROOT/.db_credentials" ]]; then
-                source "$PROJECT_ROOT/.db_credentials"
-                mariadb -u "$db_user" -p"$db_pass" -e "USE ${db_name};" >/dev/null 2>&1
+        mariadb)
+            # Check if MariaDB is properly configured
+            if systemctl is-active --quiet mariadb; then
+                # Check for InnoDB and other important settings
+                local mysql_output
+                mysql_output=$(mariadb -e "SHOW VARIABLES LIKE 'innodb_buffer_pool_size';" 2>/dev/null)
+                
+                # Check if database and user exist
+                if [[ -f "$PROJECT_ROOT/.db_credentials" ]]; then
+                    source "$PROJECT_ROOT/.db_credentials"
+                    mariadb -u "$db_user" -p"$db_pass" -e "USE ${db_name};" >/dev/null 2>&1 && \
+                    [[ -n "$mysql_output" ]]
+                else
+                    return 1
+                fi
             else
                 return 1
             fi
             ;;
         redis)
-            # Check if Redis is configured in Nextcloud
-            if [[ -f "$NEXTCLOUD_ROOT/config/config.php" ]]; then
-                grep -q "'memcache.local' => '\\OC\\\\Memcache\\\\Redis'" "$NEXTCLOUD_ROOT/config/config.php" && \
-                grep -q "'redis' => " "$NEXTCLOUD_ROOT/config/config.php"
+            # Check Redis configuration and connection
+            if systemctl is-active --quiet redis-server; then
+                local redis_ping
+                redis_ping=$(redis-cli ping 2>/dev/null)
+                [[ "$redis_ping" == "PONG" ]] && \
+                [[ -f "/etc/redis/redis.conf" ]] && \
+                grep -q '^maxmemory-policy allkeys-lru' /etc/redis/redis.conf
             else
                 return 1
             fi
             ;;
         nextcloud)
-            # Check if Nextcloud is installed and configured
-            if [[ -f "$NEXTCLOUD_ROOT/occ" ]]; then
-                sudo -u "$HTTP_USER" php "$NEXTCLOUD_ROOT/occ" status --no-ansi 2>&1 | grep -q 'installed: true'
+            # Check Nextcloud configuration and status
+            local nc_root="${NEXTCLOUD_ROOT:-/var/www/nextcloud}"
+            local nc_occ="${nc_root}/occ"
+            local nc_status=0
+            
+            if [[ -f "$nc_occ" ]]; then
+                # Check if Nextcloud is installed and maintenance mode is off
+                sudo -u www-data php "$nc_occ" status --output=json 2>/dev/null | \
+                    grep -q '"installed":true' || nc_status=1
+                
+                # Check if maintenance mode is off
+                if [[ $nc_status -eq 0 ]]; then
+                    sudo -u www-data php "$nc_occ" maintenance:mode --off 2>&1 | \
+                        grep -q 'Maintenance mode disabled' || nc_status=1
+                fi
+                
+                # Check for required PHP modules in Nextcloud
+                if [[ $nc_status -eq 0 ]]; then
+                    sudo -u www-data php "$nc_occ" check &>/dev/null || nc_status=1
+                fi
+                
+                return $nc_status
             else
                 return 1
             fi
             ;;
-        letsencrypt)
-            # Check if Let's Encrypt is properly configured
-            if [[ -f "/etc/letsencrypt/options-ssl-apache.conf" || -f "/etc/letsencrypt/options-ssl-nginx.conf" ]]; then
-                return 0
+        certbot)
+            # Check certbot configuration and certificates
+            if (command -v certbot >/dev/null 2>&1 || command -v certbot-auto >/dev/null 2>&1); then
+                # Check for valid certificates
+                local cert_count=$(find /etc/letsencrypt/live -name 'fullchain.pem' 2>/dev/null | wc -l)
+                [ "$cert_count" -gt 0 ] && \
+                [ -f "/etc/letsencrypt/options-ssl-apache.conf" ] && \
+                systemctl is-active --quiet certbot.timer 2>/dev/null
             else
                 return 1
             fi
             ;;
-        *) return 1 ;;
+        cron)
+            # Check cron configuration for Nextcloud
+            local has_cron_job=0
+            local cron_active=0
+            
+            # Check for Nextcloud cron job
+            if crontab -u www-data -l 2>/dev/null | grep -q "nextcloud.*cron.php"; then
+                has_cron_job=1
+            fi
+            
+            # Check if cron service is active
+            if systemctl is-active --quiet cron 2>/dev/null; then
+                cron_active=1
+            fi
+            
+            [ $has_cron_job -eq 1 ] && [ $cron_active -eq 1 ]
+            ;;
+        *)
+            return 1
+            ;;
     esac
+}
+
+# Check if a component is running
+is_component_running() {
+    local component=$1
     
-    return $?
-}Handle Let's Encrypt separately as it's optional
-    if [[ "$component" == "$LETSENCRYPT_COMPONENT" ]]; then
-        run_component_script "install" "letsencrypt"
-        return $?
+    case $component in
+        system)
+            systemctl is-active --quiet cron && \
+            systemctl is-active --quiet fail2ban && \
+            systemctl is-active --quiet ufw
+            ;;
+        apache)
+            systemctl is-active --quiet apache2 2>/dev/null
+            ;;
+        php)
+            local php_version=$(php -v 2>/dev/null | grep -oP '^PHP \K[0-9]+\.[0-9]+')
+            [ -n "$php_version" ] && \
+            systemctl is-active --quiet "php${php_version}-fpm" 2>/dev/null
+            ;;
+        mariadb)
+            systemctl is-active --quiet mariadb 2>/dev/null
+            ;;
+        redis)
+            systemctl is-active --quiet redis-server 2>/dev/null && \
+            redis-cli ping >/dev/null 2>&1
+            ;;
+        nextcloud)
+            local nc_root="${NEXTCLOUD_ROOT:-/var/www/nextcloud}"
+            local nc_occ="${nc_root}/occ"
+            [ -f "$nc_occ" ] && \
+            sudo -u www-data php "$nc_occ" status --output=json 2>/dev/null | grep -q '"installed":true'
+            ;;
+        certbot)
+            systemctl is-active --quiet certbot.timer 2>/dev/null
+            ;;
+        cron)
+            systemctl is-active --quiet cron 2>/dev/null
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# Update Nextcloud
+update_nextcloud() {
+    log_section "Updating Nextcloud"
+    
+    if ! is_component_installed "nextcloud"; then
+        log_error "Nextcloud is not installed. Please install it first."
+        return 1
     fi
     
-{{ ... }}
+    local nc_root="${NEXTCLOUD_ROOT:-/var/www/nextcloud}"
+    local nc_occ="${nc_occ:-$nc_root/occ}"
+    
+    log_info "Putting Nextcloud in maintenance mode..."
+    sudo -u www-data php "$nc_occ" maintenance:mode --on
+    
+    log_info "Updating Nextcloud..."
+    sudo -u www-data php "$nc_occ" upgrade
+    
+    log_info "Updating database..."
+    sudo -u www-data php "$nc_occ" db:add-missing-indices
+    sudo -u www-data php "$nc_occ" db:convert-filecache-bigint --no-interaction
+    
+    log_info "Updating system files..."
+    sudo -u www-data php "$nc_occ" maintenance:repair
+    
+    log_info "Disabling maintenance mode..."
+    sudo -u www-data php "$nc_occ" maintenance:mode --off
+    
+    log_success "Nextcloud update completed successfully"
+}
+
+# Main function to handle commands
+main() {
+    local command="${1:-}"
+    local component="${2:-}"
+    
+    case "$command" in
+        install)
+            if [ -z "$component" ]; then
+                log_error "No component specified for installation"
+                show_usage
+                exit 1
+            fi
+            
+            if [ "$component" = "all" ]; then
+                for comp in "${INSTALL_ORDER[@]}"; do
+                    install_component "$comp"
+                done
+            else
+                install_component "$component"
+            fi
             ;;
+            
+        configure)
+            if [ -z "$component" ]; then
+                log_error "No component specified for configuration"
+                show_usage
+                exit 1
+            fi
+            
+            if [ "$component" = "all" ]; then
+                for comp in "${CONFIG_ORDER[@]}"; do
+                    configure_component "$comp"
+                done
+            else
+                configure_component "$component"
+            fi
+            ;;
+            
         update)
             update_nextcloud
             ;;
