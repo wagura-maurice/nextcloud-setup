@@ -17,13 +17,15 @@ UTILS_DIR="$SRC_DIR/utilities"
 
 # Source core functions and environment loader
 source "$CORE_DIR/common-functions.sh"
-source "$CORE_DIR/logging.sh"
 source "$CORE_DIR/env-loader.sh"
 
 # Initialize environment
 load_environment
 
-# Initialize logging
+# Now that environment is loaded, source logging
+source "$CORE_DIR/logging.sh"
+
+# Initialize logging with the correct log level
 init_logging
 
 # Log script start
