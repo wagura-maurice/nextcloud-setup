@@ -19,9 +19,10 @@ set -euo pipefail
 # Set script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${SCRIPT_DIR}"
+SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 
 # Export paths
-export SCRIPT_DIR PROJECT_ROOT
+export SCRIPT_DIR PROJECT_ROOT SCRIPT_NAME
 
 # Set default environment variables
 : "${SRC_DIR:=${PROJECT_ROOT}/src}"
