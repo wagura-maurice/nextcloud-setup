@@ -140,6 +140,7 @@ EOL
 cat > /etc/letsencrypt/renewal-hooks/post/start-webserver << 'EOL'
 #!/bin/sh
 systemctl start apache2
+EOL
 
 # Make hooks executable
 chmod +x /etc/letsencrypt/renewal-hooks/pre/stop-webserver
@@ -194,33 +195,15 @@ else
 fi
 
 echo "=== System Preparation Complete ==="
-# Check if running as root
-if [ "$(id -u)" -eq 0 ]; then
-    echo "\n=== Starting Nextcloud Setup ==="
-    echo "Running nextcloud-setup.sh to configure and install all required components..."
-    
-    # Check if the launcher exists and is executable
-    if [ -x "${PROJECT_ROOT}/setup-nextcloud" ]; then
-        # Run the launcher with the same user who owns the project directory
-        sudo -u "$(stat -c '%U' "${PROJECT_ROOT}")" "${PROJECT_ROOT}/setup-nextcloud"
-    else
-        echo "Error: setup-nextcloud launcher not found or not executable in ${PROJECT_ROOT}/"
-        echo "Please ensure the preparation completed successfully."
-        exit 1
-    fi
-else
-    echo "\n❌ ERROR: This script must be run as root (or with sudo)" >&2
-    echo "\nThe Nextcloud installation requires root privileges to perform the following actions:"
-    echo "- Install system packages and dependencies"
-    echo "- Configure system services (Apache, MySQL, etc.)"
-    echo "- Set up SSL certificates"
-    echo "- Create and configure system users and directories"
-    echo "- Apply security settings"
-    echo "\nPlease run the script again with root privileges:"
-    echo "  sudo ./prepare-system.sh"
-    echo "\nIf you're setting up a production environment, ensure you have:"
-    echo "1. A domain name pointing to this server"
-    echo "2. Sufficient system resources (2GB+ RAM recommended)"
-    echo "3. Backups of any existing data"
-    exit 1
-fi
+# Final message
+echo "\n✅ System preparation completed successfully!"
+echo "\nNext steps:"
+echo "1. Configure your domain in the .env file"
+echo "2. Run the setup script:"
+echo "   sudo -E ./setup-nextcloud"
+echo "\nFor production use, ensure you have:"
+echo "- A domain name pointing to this server"
+echo "- Sufficient system resources (2GB+ RAM recommended)"
+echo "- Backups of any existing data"
+
+exit 0
