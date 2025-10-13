@@ -158,9 +158,15 @@ configure_php_fpm() {
     local php_ini_path="/etc/php/${PHP_VERSION}/fpm/php.ini"
     local fpm_conf_path="/etc/php/${PHP_VERSION}/fpm/pool.d/www.conf"
     
-    # Ensure PHP-FPM is installed
-    if ! command -v "${php_fpm_service}" >/dev/null 2>&1; then
-        log_error "PHP-FPM is not installed"
+    # Check if PHP-FPM is installed by checking the package
+    if ! dpkg -l | grep -q "php${PHP_VERSION}-fpm"; then
+        log_error "PHP-FPM package is not installed"
+        return 1
+    fi
+    
+    # Check if the service file exists
+    if [ ! -f "/lib/systemd/system/${php_fpm_service}.service" ]; then
+        log_error "PHP-FPM service file not found"
         return 1
     fi
     
