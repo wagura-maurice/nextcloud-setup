@@ -32,7 +32,7 @@ chmod 640 "${LOG_FILE}" 2>/dev/null || true
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
 
 # Define installation order
-readonly INSTALL_ORDER=(
+INSTALL_ORDER=(
     "system"
     "php"
     "mariadb"
@@ -41,6 +41,8 @@ readonly INSTALL_ORDER=(
     "certbot"
     "nextcloud"
 )
+
+export INSTALL_ORDER
 
 # Color codes for output
 RED='\033[0;31m'
@@ -674,4 +676,3 @@ main() {
 
 # Run the main function
 main "$@"
-}
