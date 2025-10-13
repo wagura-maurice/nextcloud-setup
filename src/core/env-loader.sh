@@ -4,22 +4,66 @@
 # This script provides a unified way to load environment variables and configurations
 # for both setup and management scripts.
 
-# Only set SCRIPT_DIR if not already set
-if [ -z "${SCRIPT_DIR:-}" ]; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-fi
+# Ensure we're not being sourced multiple times
+[ -n "${ENV_LOADED:-}" ] && return
+
+# Set script directory if not already set
+: "${SCRIPT_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 
 # Set project root relative to script directory
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+: "${PROJECT_ROOT:=$(cd "${SCRIPT_DIR}/../../" && pwd)}"
+: "${SRC_DIR:=${PROJECT_ROOT}/src}"
+: "${CORE_DIR:=${SRC_DIR}/core}"
+: "${UTILS_DIR:=${SRC_DIR}/utilities}"
+: "${LOG_DIR:=${PROJECT_ROOT}/logs}"
+: "${CONFIG_DIR:=${PROJECT_ROOT}/config}"
+: "${DATA_DIR:=${PROJECT_ROOT}/data}"
+
+# Export all paths
+export PROJECT_ROOT SRC_DIR CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR
+
+# Ensure required directories exist
+mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
+chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
+
+# Set default environment file
 ENV_FILE="${PROJECT_ROOT}/.env"
 
-# Source common functions first
-if [ -f "${SCRIPT_DIR}/common-functions.sh" ]; then
-    source "${SCRIPT_DIR}/common-functions.sh"
-else
-    echo "Error: common-functions.sh not found in ${SCRIPT_DIR}" >&2
-    exit 1
+# Load common functions if not already loaded
+if ! type -t log_info >/dev/null 2>&1; then
+    if [ -f "${CORE_DIR}/common-functions.sh" ]; then
+        source "${CORE_DIR}/common-functions.sh"
+    else
+        echo "Error: common-functions.sh not found in ${CORE_DIR}" >&2
+        exit 1
+    fi
 fi
+
+# Main environment file
+ENV_FILE="${PROJECT_ROOT}/.env"
+
+# Ensure required directories exist
+mkdir -p "$LOG_DIR"
+chmod 750 "$LOG_DIR"
+
+# Set default values
+declare -A DEFAULTS=(
+    [PROJECT_ROOT]="$PROJECT_ROOT"
+    [SRC_DIR]="$SRC_DIR"
+    [CORE_DIR]="$CORE_DIR"
+    [LOG_DIR]="$LOG_DIR"
+    [CONFIG_DIR]="${PROJECT_ROOT}/config"
+    [BACKUP_DIR]="/var/backups/nextcloud"
+    [NEXTCLOUD_DATA_DIR]="/var/www/nextcloud/data"
+    [DB_TYPE]="mariadb"
+    [DB_HOST]="localhost"
+    [DB_PORT]="3306"
+    [DB_NAME]="nextcloud"
+    [DB_USER]="nextcloud"
+    [PHP_MEMORY_LIMIT]="512M"
+    [PHP_UPLOAD_LIMIT]="10G"
+    [PHP_MAX_EXECUTION_TIME]="3600"
+)
 
 # Default environment variables
 declare -A DEFAULTS=(
@@ -42,14 +86,16 @@ declare -A DEFAULTS=(
 load_environment() {
     local env_file="${1:-$ENV_FILE}"
     
-    # Initialize logging if not already done
-    if ! type -t log_info >/dev/null 2>&1; then
-        if [ -f "${SCRIPT_DIR}/logging.sh" ]; then
-            source "${SCRIPT_DIR}/logging.sh"
-        else
-            echo "Error: logging.sh not found in ${SCRIPT_DIR}" >&2
-            exit 1
-        fi
+    log_info "Loading environment from $env_file"
+    
+    # Create default .env if it doesn't exist
+    if [ ! -f "$env_file" ]; then
+        log_warning "No .env file found at $env_file, creating with default values"
+        cp -n "${PROJECT_ROOT}/.env.example" "$env_file" || {
+            log_error "Failed to create default .env file"
+            return 1
+        }
+        chmod 600 "$env_file"
     fi
     
     # Create default .env if it doesn't exist

@@ -8,32 +8,76 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-# Get the directory where this script is located
-export SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export PROJECT_ROOT="$SCRIPT_DIR"
-export SRC_DIR="$PROJECT_ROOT/src"
-export CORE_DIR="$SRC_DIR/core"
-export UTILS_DIR="$SRC_DIR/utilities"
+#!/bin/bash
+
+# Nextcloud Setup Script
+# This script initializes the environment and starts the Nextcloud setup process
+
+# Exit on any error
+set -euo pipefail
+
+# Get the absolute path to this script and set project root
+readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly PROJECT_ROOT="$SCRIPT_DIR"
+
+# Set up project directory structure
+export PROJECT_ROOT
+readonly SRC_DIR="${PROJECT_ROOT}/src"
+readonly CORE_DIR="${SRC_DIR}/core"
+readonly UTILS_DIR="${SRC_DIR}/utilities"
+readonly LOG_DIR="${PROJECT_ROOT}/logs"
+readonly CONFIG_DIR="${PROJECT_ROOT}/config"
+readonly DATA_DIR="${PROJECT_ROOT}/data"
+
+# Create required directories with proper permissions
+mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
+chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
+
+# Add project utilities to PATH
+export PATH="${UTILS_DIR}:${PATH}"
+
+# Set default environment variables
+export LOG_LEVEL="${LOG_LEVEL:-INFO}"
+export LOG_FILE="${LOG_DIR}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log"
+
+# Ensure we have a clean environment
+unset CDPATH
+
+# Log initialization
+exec > >(tee -a "${LOG_FILE}") 2>&1
 
 # Set default log level if not set
 export LOG_LEVEL=${LOG_LEVEL:-INFO}
 
-# Source environment loader first (it will handle logging initialization)
+# Source core functions first
+if [ -f "$CORE_DIR/common-functions.sh" ]; then
+    source "$CORE_DIR/common-functions.sh"
+else
+    echo "Error: common-functions.sh not found in $CORE_DIR" >&2
+    exit 1
+fi
+
+# Source logging
+if [ -f "$CORE_DIR/logging.sh" ]; then
+    source "$CORE_DIR/logging.sh"
+else
+    echo "Error: logging.sh not found in $CORE_DIR" >&2
+    exit 1
+fi
+
+# Initialize logging
+init_logging
+
+# Source environment loader
 if [ -f "$CORE_DIR/env-loader.sh" ]; then
     source "$CORE_DIR/env-loader.sh"
 else
-    echo "Error: env-loader.sh not found in $CORE_DIR" >&2
+    log_error "env-loader.sh not found in $CORE_DIR"
     exit 1
 fi
 
 # Now load the environment
 load_environment
-
-# Ensure logging is initialized
-if ! type -t log_info >/dev/null 2>&1; then
-    echo "Error: Failed to initialize logging" >&2
-    exit 1
-fi
 
 # Log script start
 log_info "=== Starting Nextcloud Setup ==="

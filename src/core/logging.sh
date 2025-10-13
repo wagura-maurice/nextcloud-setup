@@ -2,10 +2,12 @@
 
 #!/bin/bash
 
-# Logging configuration
-LOG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/logs"
-mkdir -p "$LOG_DIR"
-chmod 750 "$LOG_DIR"
+# Logging Functions for Nextcloud Setup and Management
+# This script provides consistent logging functionality across all scripts
+
+# Set default log level if not set
+: "${LOG_LEVEL:="INFO"}"
+: "${LOG_FILE:="${LOG_DIR:-/var/log/nextcloud}/nextcloud-setup.log"}"
 
 # Define log levels
 readonly LOG_LEVEL_DEBUG=0
@@ -27,71 +29,69 @@ map_log_level() {
 }
 
 # Set log level from environment or default to INFO
-LOG_LEVEL_NUM=$(map_log_level "${LOG_LEVEL:-INFO}")
+LOG_LEVEL_NUM=$(map_log_level "${LOG_LEVEL}")
 export LOG_LEVEL_NUM
 
-# Get current timestamp
-get_timestamp() {
-    date +"%Y-%m-%d %H:%M:%S"
-}
+# Ensure log directory exists
+log_dir="$(dirname "$LOG_FILE")"
+mkdir -p "$log_dir"
+chmod 750 "$log_dir"
 
-# Initialize logging for a script
+# Initialize logging
 init_logging() {
-    local script_name=$(basename "${BASH_SOURCE[1]}" .sh)
-    local timestamp=$(date +%Y%m%d_%H%M%S)
-    LOG_FILE="$LOG_DIR/${script_name}_${timestamp}.log"
-    
-    # Create log file with secure permissions
+    # Create log file if it doesn't exist
     touch "$LOG_FILE"
     chmod 640 "$LOG_FILE"
     
     # Log script start
-    log "INFO" "=== Starting $script_name ==="
+    log_info "=== Logging initialized ==="
+    log_info "Log file: $LOG_FILE"
+    log_info "Log level: ${LOG_LEVEL} (${LOG_LEVEL_NUM})"
 }
 
-# Log a message
+# Log a message with timestamp and log level
+# Usage: log <level> <message> [exit_code]
 log() {
     local level="$1"
-    local message="${*:2}"
-    local timestamp=$(get_timestamp)
-    local level_str
+    local message="$2"
+    local exit_code="${3:-}"
+    local timestamp
     
-    # Map numeric levels to strings
-    case "$level" in
-        "$LOG_LEVEL_DEBUG") level_str="DEBUG" ;;
-        "$LOG_LEVEL_INFO") level_str="INFO" ;;
-        "$LOG_LEVEL_WARNING") level_str="WARNING" ;;
-        "$LOG_LEVEL_ERROR") level_str="ERROR" ;;
-        *) level_str="UNKNOWN" ;;
-    esac
+    # Map level to numeric value
+    local level_num
+    level_num=$(map_log_level "$level")
     
-    # Format log entry
-    local log_entry="[$timestamp] [$level_str] $message"
+    # Create log entry
+    local log_entry="[$timestamp] [${level^^}] $message"
     
-    # Write to log file
-    echo "$log_entry" >> "$LOG_FILE"
-    
-    # Print to console based on log level
-    if [ "$level" -le "$LOG_LEVEL_NUM" ]; then
-        case "$level" in
-            "$LOG_LEVEL_DEBUG") echo -e "\033[0;36m$log_entry\033[0m" ;;
-            "$LOG_LEVEL_INFO") echo -e "\033[0;32m$log_entry\033[0m" ;;
-            "$LOG_LEVEL_WARNING") echo -e "\033[0;33m$log_entry\033[0m" >&2 ;;
-            "$LOG_LEVEL_ERROR") echo -e "\033[0;31m$log_entry\033[0m" >&2 ;;
+    # Only process if level is at or above the current log level
+    if [[ $level_num -ge $LOG_LEVEL_NUM ]]; then
+        # Print to console with appropriate color
+        case $level_num in
+            $LOG_LEVEL_DEBUG) echo -e "\033[0;36m$log_entry\033[0m" ;;
+            $LOG_LEVEL_INFO) echo -e "\033[0;32m$log_entry\033[0m" ;;
+            $LOG_LEVEL_WARNING) echo -e "\033[0;33m$log_entry\033[0m" >&2 ;;
+            $LOG_LEVEL_ERROR) echo -e "\033[0;31m$log_entry\033[0m" >&2 ;;
             *) echo "$log_entry" ;;
         esac
+        
+        # Append to log file
+        echo "$log_entry" >> "$LOG_FILE"
+    fi
+    
+    # Always log errors to stderr and exit if exit code provided
+    if [[ $level_num -ge $LOG_LEVEL_ERROR ]]; then
+        if [[ -n "$exit_code" ]]; then
+            exit "$exit_code"
+        fi
     fi
 }
-
-# Helper functions for different log levels
-log_debug() { log "$LOG_LEVEL_DEBUG" "$@"; }
 log_info() { log "$LOG_LEVEL_INFO" "$@"; }
 log_warning() { log "$LOG_LEVEL_WARNING" "$@"; }
 log_error() { 
     log "$LOG_LEVEL_ERROR" "$@" 
     exit 1
 }
-
 # Log command execution
 run_command() {
     local cmd="$*"

@@ -21,7 +21,6 @@ set -o errexit    # Exit on error
 set -o nounset    # Exit on undefined variables
 set -o pipefail   # Ensure pipeline commands are checked for failures
 set -o noclobber  # Prevent overwriting existing files with >
-
 # Global configuration
 readonly SCRIPT_NAME=$(basename "${0}")
 readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -36,16 +35,72 @@ readonly SECURE_FILE_PERMS=600
 # Exit codes
 readonly E_SUCCESS=0
 readonly E_ERROR=1
-readonly E_INVALID_ARGS=2
+readonly E_INVALID_ARG=2
 readonly E_MISSING_DEP=3
 readonly E_PERMISSION=4
 readonly E_CONFIG=5
 
+# Load environment if not already loaded
+if [ -z "${PROJECT_ROOT:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -f "${SCRIPT_DIR}/env-loader.sh" ]; then
+        source "${SCRIPT_DIR}/env-loader.sh"
+    else
+        echo "Error: env-loader.sh not found in ${SCRIPT_DIR}" >&2
+        exit 1
+    fi
+fi
+
 # Check if running as root
-# Exits with E_PERMISSION if not run as root
+# Exits with E_PERMISSION
 check_root() {
     if [ "$(id -u)" -ne 0 ]; then
         log_error "This script must be run as root" ${E_PERMISSION}
+    fi
+}
+
+# Ensure required directories exist
+ensure_directories() {
+    local dirs=(
+        "${LOG_DIR}"
+        "${CONFIG_DIR}"
+        "${DATA_DIR}"
+        "${PROJECT_ROOT}/backups"
+        "${PROJECT_ROOT}/tmp"
+    )
+    
+    for dir in "${dirs[@]}"; do
+        if [ ! -d "$dir" ]; then
+            mkdir -p "$dir"
+            chmod 750 "$dir"
+        fi
+    done
+}
+
+# Check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Install required packages
+install_packages() {
+    local packages=("$@")
+    local pkg_manager=""
+    
+    # Detect package manager
+    if command_exists apt-get; then
+        pkg_manager="apt-get -y install"
+    elif command_exists yum; then
+        pkg_manager="yum -y install"
+    elif command_exists dnf; then
+        pkg_manager="dnf -y install"
+    else
+        log_error "Could not find a supported package manager" ${E_MISSING_DEP}
+    fi
+    
+    log_info "Installing required packages: ${packages[*]}"
+    if ! $pkg_manager "${packages[@]}"; then
+        log_error "Failed to install required packages" ${E_ERROR}
     fi
 }
 
