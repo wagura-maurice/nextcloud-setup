@@ -1,5 +1,7 @@
 #!/bin/bash
 
+#!/bin/bash
+
 # Logging configuration
 LOG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/logs"
 mkdir -p "$LOG_DIR"
@@ -11,8 +13,21 @@ readonly LOG_LEVEL_INFO=1
 readonly LOG_LEVEL_WARNING=2
 readonly LOG_LEVEL_ERROR=3
 
+# Map string log levels to numeric values
+map_log_level() {
+    case "${1^^}" in
+        "DEBUG") echo $LOG_LEVEL_DEBUG ;;
+        "INFO") echo $LOG_LEVEL_INFO ;;
+        "WARNING") echo $LOG_LEVEL_WARNING ;;
+        "ERROR") echo $LOG_LEVEL_ERROR ;;
+        [0-9]*) echo $1 ;;
+        *) echo $LOG_LEVEL_INFO ;;
+    esac
+}
+
 # Default log level (can be overridden by setting LOG_LEVEL environment variable)
-LOG_LEVEL=${LOG_LEVEL:-$LOG_LEVEL_INFO}
+LOG_LEVEL_NUM=$(map_log_level "${LOG_LEVEL:-INFO}")
+export LOG_LEVEL_NUM
 
 # Get current timestamp
 get_timestamp() {
@@ -56,7 +71,7 @@ log() {
     echo "$log_entry" >> "$LOG_FILE"
     
     # Print to console based on log level
-    if [ "$level" -ge "$LOG_LEVEL" ]; then
+    if [ "$level" -ge "$LOG_LEVEL_NUM" ]; then
         case "$level" in
             "$LOG_LEVEL_DEBUG") echo -e "\033[0;36m$log_entry\033[0m" ;;
             "$LOG_LEVEL_INFO") echo -e "\033[0;32m$log_entry\033[0m" ;;
