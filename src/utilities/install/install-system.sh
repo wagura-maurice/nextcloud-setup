@@ -130,10 +130,10 @@ install_system_dependencies() {
         return 1
     fi
     
-    # Configure firewall
-    if ! configure_firewall; then
-        log_warning "Failed to configure firewall. Continuing..."
-    fi
+    # Note: Firewall configuration should be handled by the system administrator
+    # or through a dedicated firewall configuration script
+    log_info "Skipping firewall configuration. Please configure your firewall manually."
+    log_info "Recommended: Allow ports 80, 443, and 22 (SSH) for web and secure shell access."
     
     log_success "System dependencies installed successfully"
     return 0
