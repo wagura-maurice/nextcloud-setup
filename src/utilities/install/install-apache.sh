@@ -25,37 +25,23 @@ init_logging
 
 log_section "Apache Installation"
 
-# Function to install packages with retries
-install_packages() {
-    local packages=("$@")
-    local max_attempts=3
-    local delay=5
-    local attempt=1
-
-    while [ $attempt -le $max_attempts ]; do
-        log_info "Installing packages (attempt $attempt of $max_attempts)..."
-        
-        # First update package lists
-        if ! apt-get update; then
-            log_warning "Failed to update package lists, retrying in ${delay} seconds..."
-            sleep $delay
-            attempt=$((attempt + 1))
-            continue
-        fi
-        
-        # Try to install packages
-        if DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages[@]}"; then
-            log_info "Successfully installed packages"
-            return 0
-        fi
-        
-        log_warning "Package installation failed, retrying in ${delay} seconds..."
-        sleep $delay
-        attempt=$((attempt + 1))
-    done
+# Function to install PHP using the dedicated script
+install_php() {
+    log_info "Installing PHP using the dedicated script..."
     
-    log_error "Failed to install packages after $max_attempts attempts"
-    return 1
+    local php_script="${CORE_DIR}/../install/install-php.sh"
+    
+    if [ -f "$php_script" ]; then
+        if ! bash "$php_script"; then
+            log_error "Failed to install PHP"
+            return 1
+        fi
+    else
+        log_error "PHP installation script not found at $php_script"
+        return 1
+    fi
+    
+    return 0
 }
 
 # Function to install Apache
@@ -73,40 +59,22 @@ install_apache() {
         fi
     done
     
-    # Add PHP 8.4 repository
-    log_info "Adding PHP 8.4 repository..."
-    if ! add-apt-repository -y ppa:ondrej/php > /dev/null 2>&1; then
-        apt-get install -y software-properties-common
-        add-apt-repository -y ppa:ondrej/php
+    # Install PHP first
+    if ! install_php; then
+        log_error "Failed to install PHP"
+        return 1
     fi
-    apt-get update
-
-    # Required packages for PHP 8.4
+    
+    # Required Apache packages
     local required_packages=(
         "apache2"
         "apache2-utils"
         "libapache2-mod-fcgid"
-        "php8.4"
-        "php8.4-cli"
-        "php8.4-common"
-        "php8.4-curl"
-        "php8.4-gd"
-        "php8.4-json"
-        "php8.4-mbstring"
-        "php8.4-mysql"
-        "php8.4-xml"
-        "php8.4-zip"
-        "php8.4-intl"
-        "php8.4-bcmath"
-        "php8.4-gmp"
-        "php8.4-imagick"
-        "php8.4-fpm"
-        "libapache2-mod-php8.4"
     )
     
-    # Install required packages
-    if ! install_packages "${required_packages[@]}"; then
-        log_error "Failed to install required packages"
+    # Install required Apache packages
+    if ! DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${required_packages[@]}"; then
+        log_error "Failed to install required Apache packages"
         return 1
     fi
     
@@ -145,34 +113,15 @@ install_apache() {
     a2enconf php8.4-fpm > /dev/null 2>&1 || true
     a2enmod proxy_fcgi setenvif > /dev/null
     
-    # Disable any other PHP versions
-    for phpver in 5.6 7.0 7.1 7.2 7.3 7.4 8.0 8.1 8.2 8.3; do
-        if [ -f "/etc/php/${phpver}/fpm/php-fpm.conf" ]; then
-            systemctl stop "php${phpver}-fpm" 2>/dev/null || true
-            systemctl disable "php${phpver}-fpm" 2>/dev/null || true
-        fi
-    done
-    
-    # Restart services
-    log_info "Restarting services..."
-    systemctl enable php8.4-fpm > /dev/null 2>&1 || true
-    systemctl restart php8.4-fpm || log_warning "Failed to restart PHP 8.4 FPM"
-    
+    # Restart Apache
+    log_info "Restarting Apache..."
     if ! systemctl restart apache2; then
         log_error "Failed to restart Apache"
         return 1
     fi
     
-    # Enable services to start on boot
+    # Enable Apache to start on boot
     systemctl enable apache2 > /dev/null 2>&1 || true
-    
-    # Verify PHP version
-    local php_version=$(php -v | grep -oP '^PHP \K[0-9]+\.[0-9]+' || echo "")
-    if [[ "$php_version" != "8.4" ]]; then
-        log_warning "PHP version is ${php_version}, but expected 8.4. Please check the installation."
-    else
-        log_success "PHP 8.4 is now the active version"
-    fi
     
     log_success "Apache installation completed successfully"
     return 0
