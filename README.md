@@ -1,5 +1,65 @@
 # 🚀 Nextcloud Enterprise-Grade Deployment Kit
 
+## 🚀 Quick Installation
+
+1. **Clone the repository and change directory**:
+   ```bash
+   git clone https://github.com/wagura-maurice/nextcloud-setup.git
+   cd nextcloud-setup
+   ```
+
+2. **Make installation scripts executable**:
+   ```bash
+   chmod +x src/utilities/install/*.sh
+   ```
+
+3. **Run the system installation**:
+   ```bash
+   sudo ./src/utilities/install/install-system.sh
+   ```
+
+4. **Fix path issues** (if any):
+   ```bash
+   sed -i 's|SCRIPT_DIR="\$\(cd "\$\(dirname "\${BASH_SOURCE[0]}")"/../.. && pwd)"|SCRIPT_DIR="\$\(cd "\$\(dirname "\${BASH_SOURCE[0]}")"/../.. && pwd -P)"|' src/utilities/install/install-apache.sh
+   ```
+
+5. **Install and configure Apache**:
+   ```bash
+   sudo ./src/utilities/install/install-apache.sh
+   ```
+
+6. **Install and configure MariaDB**:
+   ```bash
+   sudo ./src/utilities/install/install-mariadb.sh
+   sudo ./src/utilities/configure/configure-mariadb.sh
+   ```
+
+7. **Install and configure PHP**:
+   ```bash
+   sudo ./src/utilities/install/install-php.sh
+   sudo ./src/utilities/configure/configure-php.sh
+   ```
+
+8. **Install Nextcloud**:
+   ```bash
+   sudo ./src/utilities/install/install-nextcloud.sh
+   ```
+
+9. **Final configuration**:
+   ```bash
+   sudo ./src/utilities/configure/configure-nextcloud.sh
+   ```
+
+### Troubleshooting
+
+- **Firewall Warning**: The firewall configuration warning during system installation is non-critical and can be ignored.
+- **Path Issues**: If you encounter path-related errors, make sure to run the path fix command in step 4.
+- **Logs**: Check logs in the `logs/` directory for detailed error information.
+
+---
+
+## 🚀 Nextcloud Enterprise-Grade Deployment Kit
+
 A comprehensive, production-ready Nextcloud deployment solution with enterprise-grade optimizations, security configurations, and automation scripts.
 
 > **Developer**: Wagura Maurice  
@@ -313,10 +373,10 @@ The Nextcloud CLI tool provides a unified interface for all management tasks:
 ### Install Specific Components
 ```bash
 # Install just the database
-./nextcloud-setup install database
+./nextcloud-setup install mariadb
 
-# Install web server and PHP
-./nextcloud-setup install webserver php
+# Install Apache and PHP
+./nextcloud-setup install apache php
 ```
 
 ### Configure Components
@@ -359,52 +419,82 @@ The Nextcloud CLI tool provides a unified interface for all management tasks:
 
 ### Installation
 
-1. **Prepare Your System**
-
+1. **Clone and Prepare**
    ```bash
-   # Update system and install Git
-   sudo apt update && sudo apt upgrade -y
-   sudo apt install -y git
-   ```
-
-2. **Clone the Repository**
-
-   ```bash
+   # Clone the repository
    git clone https://github.com/wagura-maurice/nextcloud-setup.git
    cd nextcloud-setup
+   
+   # Run the system preparation script
+   sudo ./prepare-system.sh
    ```
 
-3. **Run the Installation**
-
-   For a production environment with a valid SSL certificate:
+2. **Run System Installation**
    ```bash
-   # Make the script executable and run it
-   chmod +x scripts/install-nextcloud.sh
-   sudo ./scripts/install-nextcloud.sh # will trigger ssl staging by default
-   sudo ./scripts/install-nextcloud.sh --ssl=production # will trigger ssl production explicityly 
+   # Make all installation scripts executable
+   sudo chmod +x src/utilities/install/*.sh
+   
+   # Install system dependencies and core components
+   sudo ./src/utilities/install/install-system.sh
+   
+   # Install and configure Apache
+   sudo ./src/utilities/install/install-apache.sh
+   
+   # Install and configure MariaDB
+   sudo ./src/utilities/install/install-mariadb.sh
+   
+   # Install and configure PHP
+   sudo ./src/utilities/install/install-php.sh
+   
+   # Install and configure Redis
+   sudo ./src/utilities/install/install-redis.sh
+   
+   # Install and configure Certbot for SSL
+   sudo ./src/utilities/install/install-certbot.sh
+   
+   # Install Nextcloud
+   sudo ./src/utilities/install/install-nextcloud.sh
    ```
 
-   For testing/development with a staging SSL certificate (avoids rate limits):
+3. **Run Configuration Scripts**
+   After installation completes, configure all components:
    ```bash
-   sudo ./scripts/install-nextcloud.sh --ssl=staging # will trigger ssl staging explicityly 
+   # Make all configuration scripts executable
+   sudo chmod +x src/utilities/configure/*.sh
+   
+   # Configure system settings
+   sudo ./src/utilities/configure/configure-system.sh
+   
+   # Configure Apache web server
+   sudo ./src/utilities/configure/configure-apache.sh
+   
+   # Configure MariaDB database
+   sudo ./src/utilities/configure/configure-mariadb.sh
+   
+   # Configure PHP settings
+   sudo ./src/utilities/configure/configure-php.sh
+   
+   # Configure Redis caching
+   sudo ./src/utilities/configure/configure-redis.sh
+   
+   # Configure SSL certificates with Certbot
+   sudo ./src/utilities/configure/configure-certbot.sh
+   
+   # Configure scheduled tasks
+   sudo ./src/utilities/configure/configure-cron.sh
+   
+   # Finalize Nextcloud configuration
+   sudo ./src/utilities/configure/configure-nextcloud.sh
    ```
 
-   > **Note**: The staging certificate will trigger browser security warnings. 
-   > To switch to production later, run:
-   > ```bash
-   > sudo certbot delete --cert-name cloud.e-granary.com
-   > sudo certbot --apache --non-interactive --agree-tos --email wagura465@gmail.com -d cloud.e-granary.com --redirect
-   > ```
-
-   The script will guide you through the installation process and automatically:
-
-   - Install and configure all dependencies (Apache, MySQL/MariaDB, PHP 8.4, Redis)
-   - Set up Apache with optimized settings for Nextcloud
-   - Configure PHP 8.4 FPM with performance optimizations
-   - Secure the installation with Let's Encrypt SSL
-   - Set up Redis for caching and file locking
-   - Configure automatic backups and maintenance tasks
-   - Optimize system settings for Nextcloud performance
+4. **Complete the Setup**
+   Follow the on-screen prompts to complete your Nextcloud installation. The scripts will automatically:
+   - Configure all installed components
+   - Set up security certificates
+   - Optimize the server for Nextcloud
+   - Set up Redis for caching
+   - Configure scheduled maintenance tasks
+   - Provide you with login details
 
 4. **Access Your Nextcloud**
    After installation, access your Nextcloud instance at:
