@@ -168,8 +168,11 @@ create_test_certificate() {
 setup_automatic_renewal() {
     log_info "Setting up automatic certificate renewal..."
     
-    # Create a systemd timer for certbot renewal
-    cat > /etc/systemd/system/certbot-renew.timer <<- 'EOF'
+    # Create systemd directory if it doesn't exist
+    mkdir -p /etc/systemd/system
+    
+    # Create a systemd timer for certbot renewal with backup if exists
+    cat <<- 'EOF' | install -D --backup=numbered /dev/stdin /etc/systemd/system/certbot-renew.timer
 [Unit]
 Description=Certbot renewal timer
 
@@ -182,8 +185,8 @@ Persistent=true
 WantedBy=timers.target
 EOF
 
-    # Create a systemd service for certbot renewal
-    cat > /etc/systemd/system/certbot-renew.service <<- 'EOF'
+    # Create a systemd service for certbot renewal with backup if exists
+    cat <<- 'EOF' | install -D --backup=numbered /dev/stdin /etc/systemd/system/certbot-renew.service
 [Unit]
 Description=Certbot renewal service
 After=network-online.target
@@ -196,8 +199,16 @@ EOF
 
     # Enable and start the timer
     systemctl daemon-reload
-    systemctl enable certbot-renew.timer
-    systemctl start certbot-renew.timer
+    systemctl enable --now certbot-renew.timer
+    
+    # Verify the timer is active
+    if systemctl is-active certbot-renew.timer >/dev/null 2>&1; then
+        log_success "Certbot renewal timer is active"
+        systemctl list-timers | grep certbot
+    else
+        log_warning "Failed to activate Certbot renewal timer"
+        systemctl status certbot-renew.timer || true
+    fi
     
     # Test the renewal process (dry run)
     if certbot renew --dry-run; then
