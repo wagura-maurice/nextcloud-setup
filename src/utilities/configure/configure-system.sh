@@ -3,9 +3,12 @@ set -euo pipefail
 
 # Load core configuration and utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "${SCRIPT_DIR}/core/config-manager.sh"
-source "${SCRIPT_DIR}/core/env-loader.sh"
-source "${SCRIPT_DIR}/core/logging.sh"
+CORE_DIR="${SCRIPT_DIR}/src/core"
+
+# Source core utilities
+source "${CORE_DIR}/config-manager.sh"
+source "${CORE_DIR}/env-loader.sh"
+source "${CORE_DIR}/logging.sh"
 
 # Initialize environment and logging
 load_environment
