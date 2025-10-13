@@ -225,7 +225,7 @@ configure_php_fpm() {
     if ! systemctl is-active --quiet "${php_fpm_service}"; then
         log_error "${php_fpm_service} service is not running"
         return 1
-    }
+    fi
     
     log_success "PHP-FPM service configured and running"
     return 0
