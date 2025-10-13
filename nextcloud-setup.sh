@@ -16,18 +16,27 @@ set -o pipefail
 # Exit on any error
 set -euo pipefail
 
-# Get the absolute path to this script and set project root
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROJECT_ROOT="$SCRIPT_DIR"
+# Set script directory if not already set
+if [ -z "${SCRIPT_DIR:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    export SCRIPT_DIR
+fi
+
+# Set project root if not already set
+if [ -z "${PROJECT_ROOT:-}" ]; then
+    PROJECT_ROOT="$SCRIPT_DIR"
+    export PROJECT_ROOT
+fi
 
 # Set up project directory structure
-export PROJECT_ROOT
-readonly SRC_DIR="${PROJECT_ROOT}/src"
-readonly CORE_DIR="${SRC_DIR}/core"
-readonly UTILS_DIR="${SRC_DIR}/utilities"
-readonly LOG_DIR="${PROJECT_ROOT}/logs"
-readonly CONFIG_DIR="${PROJECT_ROOT}/config"
-readonly DATA_DIR="${PROJECT_ROOT}/data"
+: "${SRC_DIR:=${PROJECT_ROOT}/src}"
+: "${CORE_DIR:=${SRC_DIR}/core}"
+: "${UTILS_DIR:=${SRC_DIR}/utilities}"
+: "${LOG_DIR:=${PROJECT_ROOT}/logs}"
+: "${CONFIG_DIR:=${PROJECT_ROOT}/config}"
+: "${DATA_DIR:=${PROJECT_ROOT}/data}"
+
+export SRC_DIR CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR
 
 # Create required directories with proper permissions
 mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"

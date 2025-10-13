@@ -8,10 +8,14 @@
 [ -n "${ENV_LOADED:-}" ] && return
 
 # Set script directory if not already set
-: "${SCRIPT_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+if [ -z "${SCRIPT_DIR:-}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+fi
 
 # Set project root relative to script directory
-: "${PROJECT_ROOT:=$(cd "${SCRIPT_DIR}/../../" && pwd)}"
+if [ -z "${PROJECT_ROOT:-}" ]; then
+    PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../" && pwd)"
+fi
 : "${SRC_DIR:=${PROJECT_ROOT}/src}"
 : "${CORE_DIR:=${SRC_DIR}/core}"
 : "${UTILS_DIR:=${SRC_DIR}/utilities}"

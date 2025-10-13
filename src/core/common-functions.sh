@@ -23,8 +23,10 @@ set -o pipefail   # Ensure pipeline commands are checked for failures
 set -o noclobber  # Prevent overwriting existing files with >
 # Global configuration
 readonly SCRIPT_NAME=$(basename "${0}")
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+: "${SCRIPT_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+: "${PROJECT_ROOT:=$(dirname "$SCRIPT_DIR")}"
+
+export SCRIPT_DIR PROJECT_ROOT
 
 # File permissions
 readonly DIR_PERMS=750
