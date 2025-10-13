@@ -48,8 +48,8 @@ readonly INSTALL_OPTS="-y --no-install-recommends"
 readonly PHP_EXTENSIONS=(
     "fpm" "common" "cli" "gd" "curl" "intl" "mbstring" "xml" "zip"
     "ldap" "apcu" "imagick" "bz2" "dom" "gmp" "bcmath"
-    "opcache" "mysql" "pdo" "pdo_mysql" "fileinfo" "exif"
-    "iconv" "ctype" "tokenizer"
+    "opcache" "mysql" "fileinfo" "exif"
+    "tokenizer"
 )
 
 # Additional required packages
