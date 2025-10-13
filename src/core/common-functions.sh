@@ -36,12 +36,14 @@ export SCRIPT_DIR PROJECT_ROOT
 : "${SECURE_FILE_PERMS:=600}"
 
 # Exit codes
-readonly E_SUCCESS=0
-readonly E_ERROR=1
-readonly E_INVALID_ARG=2
-readonly E_MISSING_DEP=3
-readonly E_PERMISSION=4
-readonly E_CONFIG=5
+: "${E_SUCCESS:=0}"      # Success
+: "${E_ERROR:=1}"        # General error
+: "${E_INVALID_ARG:=2}"  # Invalid argument
+: "${E_MISSING_DEP:=3}"  # Missing dependency
+: "${E_PERMISSION:=4}"   # Permission denied
+: "${E_CONFIG:=5}"       # Configuration error
+
+export E_SUCCESS E_ERROR E_INVALID_ARG E_MISSING_DEP E_PERMISSION E_CONFIG
 
 # Load environment if not already loaded
 if [ -z "${PROJECT_ROOT:-}" ]; then

@@ -37,7 +37,11 @@ export SCRIPT_DIR PROJECT_ROOT SCRIPT_NAME
 # Export all variables
 export SRC_DIR CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR LOG_LEVEL LOG_FILE
 
+# Export file permission variables
 export DIR_PERMS FILE_PERMS SECURE_DIR_PERMS SECURE_FILE_PERMS
+
+# Export exit code variables
+export E_SUCCESS E_ERROR E_INVALID_ARG E_MISSING_DEP E_PERMISSION E_CONFIG
 
 # Create required directories with proper permissions
 mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
