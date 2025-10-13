@@ -17,8 +17,8 @@ cd nextcloud-setup
 
 # Make scripts executable
 sudo chmod +x prepare-system.sh
-sudo chmod +x src/utilities/install/install-system.sh
-sudo chmod +x src/utilities/configure/configure-system.sh
+sudo chmod +x src/utilities/install/install-*.sh
+sudo chmod +x src/utilities/configure/configure-*.sh
 
 # Run system preparation
 sudo ./prepare-system.sh
