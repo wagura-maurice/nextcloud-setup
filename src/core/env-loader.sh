@@ -152,25 +152,53 @@ declare -A DEFAULTS=(
 
 # Load environment from .env file
 load_environment() {
-    local env_file="${1:-$ENV_FILE}"
+    # Set the default .env file path in the project root
+    local env_file="${PROJECT_ROOT}/.env"
     
     log_info "Loading environment from $env_file"
     
-    # Create default .env if it doesn't exist
-    if [ ! -f "$env_file" ]; then
-        log_warning "No .env file found at $env_file, creating with default values"
-        cp -n "${PROJECT_ROOT}/.env.example" "$env_file" || {
-            log_error "Failed to create default .env file"
-            return 1
-        }
-        chmod 600 "$env_file"
-    fi
+    # Create required directories if they don't exist
+    mkdir -p "$(dirname "$env_file")" 2>/dev/null || {
+        log_error "Failed to create directory for .env file"
+        return 1
+    }
     
     # Create default .env if it doesn't exist
     if [[ ! -f "$env_file" ]]; then
         log_warning "No .env file found at $env_file, creating with default values"
-        cp "${PROJECT_ROOT}/.env.example" "$env_file"
+        
+        # Create a basic .env file with default values
+        cat > "$env_file" << 'EOL'
+# Database Configuration
+DB_HOST=localhost
+DB_NAME=nextcloud
+DB_USER=nextcloud
+DB_PASS=your_secure_password
+
+# Nextcloud Configuration
+NEXTCLOUD_ADMIN_USER=admin
+NEXTCLOUD_ADMIN_PASS=your_secure_admin_password
+NEXTCLOUD_DATA_DIR=/var/www/nextcloud/data
+NEXTCLOUD_TRUSTED_DOMAINS=localhost
+
+# System Configuration
+TIMEZONE=UTC
+LANGUAGE=en_US.UTF-8
+
+# PHP Configuration
+PHP_MEMORY_LIMIT=512M
+PHP_UPLOAD_LIMIT=2G
+PHP_MAX_EXECUTION_TIME=3600
+PHP_MAX_INPUT_TIME=3600
+EOL
+        
+        if [[ $? -ne 0 ]]; then
+            log_error "Failed to create default .env file at $env_file"
+            return 1
+        fi
+        
         chmod 600 "$env_file"
+        log_success "Created default .env file at $env_file"
     fi
 
     # Load environment variables
