@@ -1,15 +1,51 @@
 #!/bin/bash
 set -euo pipefail
 
-# Load core configuration and utilities
+# Set project root and core directories
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "${SCRIPT_DIR}/core/config-manager.sh"
-source "${SCRIPT_DIR}/core/env-loader.sh"
-source "${SCRIPT_DIR}/core/logging.sh"
+PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"
+CORE_DIR="${PROJECT_ROOT}/core"
+SRC_DIR="${PROJECT_ROOT}/src"
+UTILS_DIR="${SRC_DIR}/utilities"
+LOG_DIR="${PROJECT_ROOT}/logs"
+CONFIG_DIR="${PROJECT_ROOT}/config"
+DATA_DIR="${PROJECT_ROOT}/data"
+ENV_FILE="${PROJECT_ROOT}/.env"
+
+# Export environment variables
+export PROJECT_ROOT CORE_DIR SRC_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR ENV_FILE
+
+# Create required directories
+mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
+chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
+
+# Function to safely source core utilities
+safe_source() {
+    local file="$1"
+    if [ -f "${file}" ]; then
+        # shellcheck source=/dev/null
+        source "${file}" || {
+            echo "Error: Failed to load ${file}" >&2
+            return 1
+        }
+    else
+        echo "Error: Required file not found: ${file}" >&2
+        return 1
+    fi
+}
+
+# Source core utilities with error handling
+if ! safe_source "${CORE_DIR}/config-manager.sh" || \
+   ! safe_source "${CORE_DIR}/env-loader.sh" || \
+   ! safe_source "${CORE_DIR}/logging.sh"; then
+    exit 1
+fi
 
 # Initialize environment and logging
-load_environment
-init_logging
+if ! load_environment || ! init_logging; then
+    echo "Error: Failed to initialize environment and logging" >&2
+    exit 1
+fi
 
 log_section "Certbot Installation"
 
