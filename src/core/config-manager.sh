@@ -244,10 +244,10 @@ load_installation_config() {
         
         # SSL Configuration
         SSL_ENABLED="${SSL_ENABLED:-true}"
-        SSL_EMAIL="${SSL_EMAIL:-admin@example.com}"
+        SSL_EMAIL="${SSL_EMAIL:-support@e-granary.com}"
         SSL_COUNTRY="${SSL_COUNTRY:-KE}"
-        SSL_STATE="${SSL_STATE:-'Nairobi'}"
-        SSL_LOCALITY="${SSL_LOCALITY:-'Nairobi'}"
+        SSL_STATE="${SSL_STATE:-Nairobi}"
+        SSL_LOCALITY="${SSL_LOCALITY:-Nairobi}"
         SSL_ORG="${SSL_ORG:-e-Granary}"
         SSL_OU="${SSL_OU:-IT_Dept}"
     "
