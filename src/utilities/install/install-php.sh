@@ -44,12 +44,12 @@ readonly PHP_VERSION="8.4"
 readonly PACKAGE_MANAGER="apt-get"
 readonly INSTALL_OPTS="-y --no-install-recommends"
 
-# Required PHP extensions for Nextcloud with Apache
+# Required PHP extensions for Nextcloud with Apache (only those available in PHP 8.4)
 readonly PHP_EXTENSIONS=(
     "fpm" "common" "cli" "gd" "curl" "intl" "mbstring" "xml" "zip"
-    "ldap" "apcu" "imagick" "bz2" "dom" "simplexml" "gmp" "bcmath"
-    "opcache" "mysql" "pdo" "pdo_mysql" "fileinfo" "exif" "sodium"
-    "iconv" "ctype" "session" "tokenizer" "posix" "pcntl" "ftp"
+    "ldap" "apcu" "imagick" "bz2" "dom" "gmp" "bcmath"
+    "opcache" "mysql" "pdo" "pdo_mysql" "fileinfo" "exif"
+    "iconv" "ctype" "tokenizer"
 )
 
 # Additional required packages
