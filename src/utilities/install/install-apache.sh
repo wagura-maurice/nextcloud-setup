@@ -195,9 +195,9 @@ install_apache() {
         fi
     done
     
-    # Update package lists
-    log_info "Updating package lists..."
-    if ! $PACKAGE_MANAGER update; then
+    # Add universe repository and update package lists
+    log_info "Adding universe repository and updating package lists..."
+    if ! add-apt-repository -y universe || ! $PACKAGE_MANAGER update; then
         log_error "Failed to update package lists"
         return 1
     fi

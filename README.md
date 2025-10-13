@@ -51,6 +51,9 @@
 sudo apt update && sudo apt upgrade -y
 
 # Install required tools
+sudo apt install -y software-properties-common
+sudo add-apt-repository universe
+sudo apt update
 sudo apt install -y git curl wget nano
 
 # Clone the repository
