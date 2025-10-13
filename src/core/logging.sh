@@ -1,13 +1,17 @@
 #!/bin/bash
 
-#!/bin/bash
-
 # Logging Functions for Nextcloud Setup and Management
 # This script provides consistent logging functionality across all scripts
 
 # Set default log level if not set
 : "${LOG_LEVEL:="INFO"}"
-: "${LOG_FILE:="${LOG_DIR:-/var/log/nextcloud}/nextcloud-setup.log"}"
+: "${PROJECT_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+: "${LOG_DIR:=${PROJECT_ROOT}/logs}"
+: "${LOG_FILE:=${LOG_DIR}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log}"
+
+# Ensure log directory exists
+mkdir -p "${LOG_DIR}"
+chmod 750 "${LOG_DIR}"
 
 # Define log levels
 readonly LOG_LEVEL_DEBUG=0
@@ -37,26 +41,86 @@ log_dir="$(dirname "$LOG_FILE")"
 mkdir -p "$log_dir"
 chmod 750 "$log_dir"
 
+# Log a message with timestamp and log level
+log() {
+    local level="$1"
+    local message="$2"
+    local exit_code="${3:-}"
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Map level to numeric value
+    local level_num
+    case "${level^^}" in
+        "DEBUG") level_num=0 ;;
+        "INFO") level_num=1 ;;
+        "WARNING") level_num=2 ;;
+        "ERROR") level_num=3 ;;
+        *) level_num=1 ;; # Default to INFO
+    esac
+    
+    # Only log if level is at or above the current log level
+    if [ "$level_num" -ge "${LOG_LEVEL_NUM:-1}" ]; then
+        local log_entry="[${timestamp}] [${level^^}] ${message}"
+        
+        # Print to console with color
+        case $level_num in
+            0) echo -e "\033[0;36m${log_entry}\033[0m" ;;
+            1) echo -e "\033[0;32m${log_entry}\033[0m" ;;
+            2) echo -e "\033[0;33m${log_entry}\033[0m" >&2 ;;
+            3) echo -e "\033[0;31m${log_entry}\033[0m" >&2 ;;
+            *) echo "${log_entry}" ;;
+        esac
+    fi
+    
+    # Exit if this was an error with an exit code
+    if [ "${level^^}" = "ERROR" ] && [ -n "$exit_code" ]; then
+        exit "$exit_code"
+    fi
+}
+
+# Log level functions
+log_debug() { log "DEBUG" "$@"; }
+log_info() { log "INFO" "$@"; }
+log_warning() { log "WARNING" "$@"; }
+log_error() { log "ERROR" "$@" 1; }
+
+# Run a command and log the output
+run_command() {
+    local cmd="$*"
+    log_info "Executing: ${cmd}"
+    
+    local output
+    if output=$(eval "${cmd}" 2>&1); then
+        log_info "Command succeeded"
+        echo "${output}"
+        return 0
+    else
+        local status=$?
+        log_error "Command failed with status ${status}: ${output}"
+        return $status
+    fi
+}
+
 # Initialize logging
 init_logging() {
     # Create log file if it doesn't exist
     touch "$LOG_FILE"
     chmod 640 "$LOG_FILE"
     
-    # Redirect output to log file and console
-    exec > >(tee -a "$LOG_FILE") 2>&1
-    
     # Log script start
     log_info "=== Logging initialized ==="
     log_info "Project Root: ${PROJECT_ROOT:-Not set}"
-    log_info "Log file: $LOG_FILE"
-    log_info "Log level: ${LOG_LEVEL} (${LOG_LEVEL_NUM})"
+    log_info "Log file: ${LOG_FILE}"
+    log_info "Log level: ${LOG_LEVEL} (${LOG_LEVEL_NUM:-1})"
     
     return 0
 }
 
-# Export the logging functions
-export -f init_logging log_info log_warning log_error log_debug run_command
+# Set log level from environment or default to INFO
+LOG_LEVEL_NUM=$(log "${LOG_LEVEL}" | head -n1 | awk '{print $1}')
+
+export -f init_logging log log_debug log_info log_warning log_error run_command
 
 # Log a message with timestamp and log level
 # Usage: log <level> <message> [exit_code]
