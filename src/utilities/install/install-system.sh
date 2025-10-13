@@ -111,7 +111,7 @@ install_system_dependencies() {
     if ! install_packages "${MONITORING_TOOLS[@]}"; then
         log_warning "Some monitoring tools failed to install, but continuing..."
     fi
-{{ ... }}
+
     log_info "Installing database packages..."
     if ! install_packages "${DATABASE_PACKAGES[@]}"; then
         log_error "Failed to install database packages"
