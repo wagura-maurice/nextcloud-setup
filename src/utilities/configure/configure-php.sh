@@ -74,6 +74,12 @@ verify_prerequisites() {
 set_php_config() {
     local config_file="$1"
     local config_type="$2"
+    local is_fpm=false
+    
+    # Determine if this is an FPM configuration
+    if [[ "${config_file}" == *"fpm"* ]]; then
+        is_fpm=true
+    fi
     
     log_info "Configuring PHP ${config_type} settings in ${config_file}..."
     
@@ -116,7 +122,7 @@ session.gc_divisor = 1000
 session.cookie_secure = 1
 session.cookie_httponly = 1
 session.use_strict_mode = 1
-session.cookie_samesite = Lax
+session.cookie_samesite = "Lax"
 
 ; Error handling and logging
 error_reporting = E_ALL & ~E_DEPRECATED & ~E_STRICT
@@ -154,50 +160,51 @@ opcache.validate_timestamps = 1
 opcache.revalidate_path = 0
 opcache.max_wasted_percentage = 5
 
-; PHP-FPM specific settings
-[www]
-; Only for FPM config
-listen = /run/php/php${PHP_VERSION}-fpm.sock
-listen.owner = www-data
-listen.group = www-data
-listen.mode = 0660
-
-; Process manager settings
-pm = dynamic
-pm.max_children = $(get_config "PHP_PM_MAX_CHILDREN" "50")
-pm.start_servers = $(get_config "PHP_PM_START_SERVERS" "5")
-pm.min_spare_servers = $(get_config "PHP_PM_MIN_SPARE_SERVERS" "5")
-pm.max_spare_servers = $(get_config "PHP_PM_MAX_SPARE_SERVERS" "35")
-pm.max_requests = $(get_config "PHP_PM_MAX_REQUESTS" "500")
-
-; Process settings
-user = www-data
-group = www-data
-
-; Logging
-access.log = /var/log/php/php-fpm-access.log
-access.format = "%R - %u %t \"%m %r%Q%q\" %s %f %{mili}d %{kilo}M %C%%"
-
-; Slow log
-slowlog = /var/log/php/php-fpm-slow.log
-request_slowlog_timeout = 5s
-
-; Error log
-php_flag[display_errors] = off
-php_admin_value[error_log] = /var/log/php/php-fpm-error.log
-php_admin_flag[log_errors] = on
-
-; Resource limits
-php_admin_value[memory_limit] = ${MEMORY_LIMIT}
-php_admin_value[upload_max_filesize] = ${UPLOAD_MAX_SIZE}
-php_admin_value[post_max_size] = ${UPLOAD_MAX_SIZE}
-php_admin_value[max_execution_time] = ${MAX_EXECUTION_TIME}
-php_admin_value[max_input_time] = 3600
-
-; Session settings
-php_value[session.save_handler] = redis
-php_value[session.save_path] = "tcp://127.0.0.1:6379"
-php_value[session.gc_maxlifetime] = 3600
+; Only include FPM-specific settings in FPM config
+$([ "$is_fpm" = true ] && echo "; PHP-FPM specific settings")
+$([ "$is_fpm" = true ] && echo "[www]")
+$([ "$is_fpm" = true ] && echo "; Only for FPM config")
+$([ "$is_fpm" = true ] && echo "listen = /run/php/php${PHP_VERSION}-fpm.sock")
+$([ "$is_fpm" = true ] && echo "listen.owner = www-data")
+$([ "$is_fpm" = true ] && echo "listen.group = www-data")
+$([ "$is_fpm" = true ] && echo "listen.mode = 0660")
+$([ "$is_fpm" = true ] && echo '')
+$([ "$is_fpm" = true ] && echo "; Process manager settings")
+$([ "$is_fpm" = true ] && echo "pm = dynamic")
+$([ "$is_fpm" = true ] && echo "pm.max_children = $(get_config \"PHP_PM_MAX_CHILDREN\" \"50\")")
+$([ "$is_fpm" = true ] && echo "pm.start_servers = $(get_config \"PHP_PM_START_SERVERS\" \"5\")")
+$([ "$is_fpm" = true ] && echo "pm.min_spare_servers = $(get_config \"PHP_PM_MIN_SPARE_SERVERS\" \"5\")")
+$([ "$is_fpm" = true ] && echo "pm.max_spare_servers = $(get_config \"PHP_PM_MAX_SPARE_SERVERS\" \"35\")")
+$([ "$is_fpm" = true ] && echo "pm.max_requests = $(get_config \"PHP_PM_MAX_REQUESTS\" \"500\")")
+$([ "$is_fpm" = true ] && echo '')
+$([ "$is_fpm" = true ] && echo "; Process settings")
+$([ "$is_fpm" = true ] && echo "user = www-data")
+$([ "$is_fpm" = true ] && echo "group = www-data")
+$([ "$is_fpm" = true ] && echo '')
+$([ "$is_fpm" = true ] && echo "; Logging")
+$([ "$is_fpm" = true ] && echo "access.log = /var/log/php/php-fpm-access.log")
+$([ "$is_fpm" = true ] && echo 'access.format = "%R - %u %t \"%m %r%Q%q\" %s %f %{mili}d %{kilo}M %C%%"')
+$([ "$is_fpm" = true ] && echo '')
+$([ "$is_fpm" = true ] && echo "; Slow log")
+$([ "$is_fpm" = true ] && echo "slowlog = /var/log/php/php-fpm-slow.log")
+$([ "$is_fpm" = true ] && echo "request_slowlog_timeout = 5s")
+$([ "$is_fpm" = true ] && echo '')
+$([ "$is_fpm" = true ] && echo "; Error log")
+$([ "$is_fpm" = true ] && echo "php_flag[display_errors] = off")
+$([ "$is_fpm" = true ] && echo "php_admin_value[error_log] = /var/log/php/php-fpm-error.log")
+$([ "$is_fpm" = true ] && echo "php_admin_flag[log_errors] = on")
+$([ "$is_fpm" = true ] && echo '')
+$([ "$is_fpm" = true ] && echo "; Resource limits")
+$([ "$is_fpm" = true ] && echo "php_admin_value[memory_limit] = ${MEMORY_LIMIT}")
+$([ "$is_fpm" = true ] && echo "php_admin_value[upload_max_filesize] = ${UPLOAD_MAX_SIZE}")
+$([ "$is_fpm" = true ] && echo "php_admin_value[post_max_size] = ${UPLOAD_MAX_SIZE}")
+$([ "$is_fpm" = true ] && echo "php_admin_value[max_execution_time] = ${MAX_EXECUTION_TIME}")
+$([ "$is_fpm" = true ] && echo "php_admin_value[max_input_time] = 3600")
+$([ "$is_fpm" = true ] && echo '')
+$([ "$is_fpm" = true ] && echo "; Session settings")
+$([ "$is_fpm" = true ] && echo 'php_value[session.save_handler] = redis')
+$([ "$is_fpm" = true ] && echo 'php_value[session.save_path] = "tcp://127.0.0.1:6379"')
+$([ "$is_fpm" = true ] && echo 'php_value[session.gc_maxlifetime] = 3600')
 php_value[session.cookie_secure] = 1
 php_value[session.cookie_httponly] = 1
 php_value[session.use_strict_mode] = 1

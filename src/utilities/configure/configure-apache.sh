@@ -62,61 +62,37 @@ verify_prerequisites() {
         return 1
     fi
     
-    # Verify PHP-FPM is installed
-    if [ ! -d "${PHP_INI_DIR}" ]; then
-        log_error "PHP-FPM ${PHP_VERSION} is not installed. Please install it first."
+    # Verify PHP-FPM is installed and running
+    if ! command -v "php-fpm${PHP_VERSION}" >/dev/null 2>&1; then
+        log_error "PHP-FPM ${PHP_VERSION} is not installed. Please install it first using install-php.sh"
         return 1
     fi
+    
+    # Verify PHP-FPM is running
+    if ! systemctl is-active --quiet "php${PHP_VERSION}-fpm"; then
+        log_error "PHP-FPM ${PHP_VERSION} is not running. Please start it with: systemctl start php${PHP_VERSION}-fpm"
+        return 1
+    }
     
     log_success "All prerequisites are met"
     return 0
 }
 
-# Function to configure PHP-FPM pool
-configure_php_fpm() {
-    log_info "Configuring PHP-FPM pool..."
+# Function to verify PHP-FPM is properly configured
+verify_php_fpm() {
+    log_info "Verifying PHP-FPM configuration..."
     
-    local pool_file="${PHP_POOL_DIR}/nextcloud.conf"
-    
-    # Create backup if file exists
-    if [ -f "${pool_file}" ]; then
-        cp "${pool_file}" "${pool_file}.bak"
+    if ! systemctl is-active --quiet "php${PHP_VERSION}-fpm"; then
+        log_error "PHP-FPM ${PHP_VERSION} is not running"
+        return 1
     fi
     
-    cat > "${pool_file}" << EOF
-[nextcloud]
-user = www-data
-group = www-data
-listen = /run/php/php${PHP_VERSION}-fpm-nextcloud.sock
-listen.owner = www-data
-listen.group = www-data
-pm = dynamic
-pm.max_children = 50
-pm.start_servers = 5
-pm.min_spare_servers = 5
-pm.max_spare_servers = 35
-pm.max_requests = 500
-php_admin_value[memory_limit] = ${MEMORY_LIMIT}
-php_admin_value[upload_max_filesize] = ${UPLOAD_MAX_SIZE}
-php_admin_value[post_max_size] = ${UPLOAD_MAX_SIZE}
-php_admin_value[max_execution_time] = 3600
-php_admin_value[max_input_time] = 3600
-php_admin_value[max_input_vars] = 10000
-php_admin_value[date.timezone] = UTC
-php_admin_flag[opcache.enable] = on
-php_admin_value[opcache.memory_consumption] = 128
-php_admin_value[opcache.interned_strings_buffer] = 8
-php_admin_value[opcache.max_accelerated_files] = 10000
-php_admin_value[opcache.validate_timestamps] = 0
-php_admin_value[opcache.save_comments] = 1
-php_admin_value[opcache.fast_shutdown] = 1
-EOF
+    if [ ! -S "/run/php/php${PHP_VERSION}-fpm.sock" ]; then
+        log_error "PHP-FPM socket not found"
+        return 1
+    fi
     
-    # Set correct permissions
-    chmod 0644 "${pool_file}"
-    chown root:root "${pool_file}"
-    
-    log_success "PHP-FPM pool configured"
+    log_success "PHP-FPM is properly configured"
     return 0
 }
 
@@ -137,6 +113,13 @@ configure_apache_vhost() {
     ServerAdmin webmaster@${DOMAIN}
     DocumentRoot ${NEXTCLOUD_ROOT}
     
+    # Enable HTTP/2 if available
+    Protocols h2 h2c http/1.1
+    
+    # Enable HTTP/2 Server Push
+    H2Push on
+    
+    # Directory configuration
     <Directory ${NEXTCLOUD_ROOT}>
         Options -Indexes +FollowSymLinks
         AllowOverride All
@@ -146,10 +129,25 @@ configure_apache_vhost() {
             Dav off
         </IfModule>
         
+        # Set environment variables
         SetEnv HOME ${NEXTCLOUD_ROOT}
         SetEnv HTTP_HOME ${NEXTCLOUD_ROOT}
+        
+        # PHP-FPM configuration
+        <FilesMatch \.php$>
+            SetHandler "proxy:unix:/run/php/php${PHP_VERSION}-fpm.sock|fcgi://localhost"
+        </FilesMatch>
+        
+        # Enable .htaccess overrides
+        <IfModule mod_rewrite.c>
+            RewriteEngine On
+            RewriteRule .* - [env=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+            RewriteRule ^\.well-known/carddav /remote.php/dav/ [R=301,L]
+            RewriteRule ^\.well-known/caldav /remote.php/dav/ [R=301,L]
+        </IfModule>
     </Directory>
     
+    # Security headers
     <IfModule mod_headers.c>
         Header always set Strict-Transport-Security "max-age=15552000; includeSubDomains; preload"
         Header always set X-Content-Type-Options "nosniff"
@@ -159,20 +157,63 @@ configure_apache_vhost() {
         Header always set X-Download-Options "noopen"
         Header always set X-Permitted-Cross-Domain-Policies "none"
         Header always set Referrer-Policy "no-referrer"
+        Header always set Permissions-Policy "camera=(), geolocation=(), microphone=()"
+        Header always set Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:;"
     </IfModule>
     
-    <IfModule mod_rewrite.c>
-        RewriteEngine On
-        RewriteRule .* - [env=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+    # Performance optimizations
+    <IfModule mod_deflate.c>
+        AddOutputFilterByType DEFLATE text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript
     </IfModule>
     
-    <IfModule mod_headers.c>
-        Header always set Referrer-Policy "no-referrer"
+    <IfModule mod_expires.c>
+        ExpiresActive on
+        ExpiresDefault "access plus 1 month"
+        ExpiresByType image/x-icon "access plus 1 year"
+        ExpiresByType image/jpg "access plus 1 month"
+        ExpiresByType image/jpeg "access plus 1 month"
+        ExpiresByType image/gif "access plus 1 month"
+        ExpiresByType image/png "access plus 1 month"
+        ExpiresByType image/svg+xml "access plus 1 month"
+        ExpiresByType text/css "access plus 1 month"
+        ExpiresByType application/javascript "access plus 1 month"
     </IfModule>
     
+    # Logging
     ErrorLog \${APACHE_LOG_DIR}/nextcloud_error.log
     CustomLog \${APACHE_LOG_DIR}/nextcloud_access.log combined
+    
+    # PHP settings
+    php_value upload_max_filesize ${UPLOAD_MAX_SIZE}
+    php_value post_max_size ${UPLOAD_MAX_SIZE}
+    php_value memory_limit ${MEMORY_LIMIT}
+    php_value max_execution_time 3600
+    php_value max_input_time 3600
+    php_value date.timezone UTC
+    
+    # Disable directory listing
+    Options -Indexes
+    
+    # Enable keep-alive
+    <IfModule mod_headers.c>
+        Header set Connection keep-alive
+    </IfModule>
 </VirtualHost>
+
+# HTTPS configuration - uncomment after setting up SSL
+#<VirtualHost *:443>
+#    ServerName ${DOMAIN}
+#    ServerAdmin webmaster@${DOMAIN}
+#    DocumentRoot ${NEXTCLOUD_ROOT}
+#    
+#    # SSL Configuration
+#    SSLEngine on
+#    SSLCertificateFile      /etc/ssl/certs/ssl-cert-snakeoil.pem
+#    SSLCertificateKeyFile /etc/ssl/private/ssl-cert-snakeoil.key
+#    
+#    # Rest of the configuration is the same as for port 80
+#    Include ${APACHE_SITES_AVAILABLE}/nextcloud.conf
+#</VirtualHost>
 EOF
     
     # Enable the site
