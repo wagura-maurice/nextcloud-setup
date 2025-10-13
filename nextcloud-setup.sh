@@ -13,34 +13,34 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$SCRIPT_DIR"
 SRC_DIR="$PROJECT_ROOT/src"
 CORE_DIR="$SRC_DIR/core"
-SCRIPTS_DIR="$SRC_DIR/scripts"
-CONFIG_DIR="$PROJECT_ROOT/config"
-LOG_DIR="$PROJECT_ROOT/logs"
 
-# Ensure required directories exist
-mkdir -p "$LOG_DIR"
-chmod 750 "$LOG_DIR"
-
-# Source core functions and logging
+# Source core functions and environment loader
 source "$CORE_DIR/common-functions.sh"
 source "$CORE_DIR/logging.sh"
+source "$CORE_DIR/env-loader.sh"
+
+# Initialize environment
+load_environment
 
 # Initialize logging
 init_logging
 
-# Default configuration values
-DEFAULT_CONFIG="$CONFIG_DIR/nextcloud.conf"
+# Log script start
+log_info "=== Starting Nextcloud Setup ==="
+log_info "Project Root: $PROJECT_ROOT"
+log_info "Log Directory: $LOG_DIR"
 
-# Load configuration if exists
-load_config() {
-    local config_file="${1:-$DEFAULT_CONFIG}"
-    if [ -f "$config_file" ]; then
-        log_info "Loading configuration from $config_file"
-        source "$config_file"
-    else
-        log_warning "No configuration file found at $config_file, using defaults"
-    fi
-}
+# Source additional core scripts
+source "$CORE_DIR/config-manager.sh"
+
+# Load installation configuration
+load_installation_config
+
+# Ensure required directories exist
+mkdir -p "$LOG_DIR"
+chmod 750 "$LOG_DIR"
+chmod 750 "$BACKUP_DIR"
+chmod 750 "$(dirname "$NEXTCLOUD_DATA_DIR")"
 
 # Show usage information
 show_usage() {

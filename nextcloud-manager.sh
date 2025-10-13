@@ -1,26 +1,48 @@
 #!/bin/bash
 
 # Nextcloud Manager
-# Main entry point for managing an existing Nextcloud installation
+# ================
+# Main entry point for managing an existing Nextcloud installation.
+# This script provides a menu-driven interface for common Nextcloud maintenance tasks.
 
-set -e
+# Set strict mode for better error handling
+set -o errexit
+set -o nounset
+set -o pipefail
 
 # Get the directory of this script
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR"
+SRC_DIR="$PROJECT_ROOT/src"
+CORE_DIR="$SRC_DIR/core"
 
-# Source core functions and configuration
-source "${SCRIPT_DIR}/src/core/common-functions.sh"
-source "${SCRIPT_DIR}/src/core/logging.sh"
-source "${SCRIPT_DIR}/src/core/config-manager.sh"
+# Source core functions and environment loader
+source "$CORE_DIR/common-functions.sh"
+source "$CORE_DIR/logging.sh"
+source "$CORE_DIR/env-loader.sh"
 
-# Load configuration
-load_config
+# Initialize environment and logging
+load_environment
+init_logging
+
+# Log script start
+log_info "=== Starting Nextcloud Manager ==="
+log_info "Project Root: $PROJECT_ROOT"
+
+# Source additional core scripts
+source "$CORE_DIR/config-manager.sh"
 
 # Check if running as root
 if [ "$(id -u)" -ne 0 ]; then
     log_error "This script must be run as root"
     exit 1
 fi
+
+# Ensure required directories exist
+mkdir -p "$LOG_DIR"
+chmod 750 "$LOG_DIR"
+chmod 750 "$BACKUP_DIR"
+chmod 750 "$(dirname "$NEXTCLOUD_DATA_DIR")"
 
 # Main menu
 show_menu() {
