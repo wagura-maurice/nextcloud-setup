@@ -98,26 +98,32 @@ EOF
     log_info "System limits configured"
     return 0
 }
+
 # Function to configure time synchronization
 configure_time_sync() {
     log_info "Configuring time synchronization..."
     
-    # Check if systemd-timesyncd is masked
+    # Check if systemd-timesyncd is masked and unmask it
     if systemctl is-enabled systemd-timesyncd 2>&1 | grep -q "masked"; then
         log_info "Unmasking systemd-timesyncd service..."
-        systemctl unmask systemd-timesyncd
+        systemctl unmask systemd-timesyncd || {
+            log_warning "Failed to unmask systemd-timesyncd, will try alternative approach"
+        }
     fi
 
-    # Install ntp if timedatectl is not available
-    if ! command -v timedatectl &> /dev/null; then
-        log_warning "timedatectl not found, installing ntp..."
-        apt-get update && apt-get install -y ntp
-    fi
-    
-    # Enable and start the time synchronization service
-    if command -v timedatectl &> /dev/null; then
-        timedatectl set-ntp true
-        systemctl enable --now systemd-timesyncd 2>/dev/null || true
+    # Check if we should use systemd-timesyncd or install NTP
+    if systemctl is-enabled systemd-timesyncd &> /dev/null; then
+        log_info "Using systemd-timesyncd for time synchronization"
+        if ! timedatectl set-ntp true; then
+            log_warning "Failed to enable NTP via timedatectl"
+        fi
+        if ! systemctl enable --now systemd-timesyncd 2>/dev/null; then
+            log_warning "Failed to start systemd-timesyncd, will try installing NTP instead"
+            install_ntp
+        fi
+    else
+        log_info "systemd-timesyncd not available, installing NTP..."
+        install_ntp
     fi
     
     # Verify time synchronization status
@@ -127,6 +133,51 @@ configure_time_sync() {
     
     log_info "Time synchronization configured"
     return 0
+}
+
+# Helper function to install and configure NTP
+install_ntp() {
+    log_info "Installing and configuring NTP..."
+    
+    if ! command -v ntpq &> /dev/null; then
+        log_info "Installing NTP package..."
+        apt-get update && apt-get install -y ntp
+    fi
+    
+    # Configure NTP servers
+    cat > /etc/ntp.conf << 'EOL'
+# NTP Configuration for Nextcloud
+driftfile /var/lib/ntp/ntp.drift
+leapfile /usr/share/zoneinfo/leap-seconds.list
+
+# Pool of NTP servers
+pool 0.ubuntu.pool.ntp.org iburst
+pool 1.ubuntu.pool.ntp.org iburst
+pool 2.ubuntu.pool.ntp.org iburst
+pool 3.ubuntu.pool.ntp.org iburst
+pool ntp.ubuntu.com
+
+# Allow local network clients to sync time
+restrict -4 default kod notrap nomodify nopeer noquery limited
+restrict -6 default kod notrap nomodify nopeer noquery limited
+
+# Allow localhost
+restrict 127.0.0.1
+restrict ::1
+EOL
+
+    # Restart NTP service
+    if systemctl is-active ntp &> /dev/null; then
+        systemctl restart ntp
+    else
+        systemctl enable --now ntp
+    fi
+    
+    # Verify NTP sync
+    if command -v ntpq &> /dev/null; then
+        log_info "NTP peers:"
+        ntpq -p
+    fi
 }
 
 # Main configuration function
