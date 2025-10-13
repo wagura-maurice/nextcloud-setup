@@ -3,10 +3,15 @@ set -euo pipefail
 
 # Set project root
 PROJECT_ROOT="/root/nextcloud-setup"
-CORE_DIR="${PROJECT_ROOT}/src/core"
+SRC_DIR="${PROJECT_ROOT}/src"
+CORE_DIR="${SRC_DIR}/core"
+UTILS_DIR="${SRC_DIR}/utilities"
 
 # Export environment variables
-export PROJECT_ROOT CORE_DIR
+export PROJECT_ROOT SRC_DIR CORE_DIR UTILS_DIR
+
+# Add core directory to PATH
+PATH="${CORE_DIR}:${PATH}"
 
 # Load core configuration and utilities
 source "${CORE_DIR}/config-manager.sh"
