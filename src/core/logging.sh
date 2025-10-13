@@ -44,18 +44,22 @@ chmod 750 "$log_dir"
 
 # Log a message with timestamp and log level
 log() {
+    # Initialize timestamp with a safe default
+    local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')"
+    
     # Handle case when called with a single argument (message only)
     if [ $# -eq 1 ]; then
         local message="$1"
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] ${message}" | tee -a "${LOG_FILE}" >&2
+        echo "[${timestamp}] [INFO] ${message}" | tee -a "${LOG_FILE}" >&2
         return 0
     fi
     
     # Ensure we have at least a log level and message
     if [ $# -lt 2 ]; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [ERROR] log() called with insufficient arguments" >&2
-        echo "[DEBUG] Called from: ${BASH_SOURCE[1]}:${BASH_LINENO[0]} with args: $*" >&2
-        echo "[DEBUG] Call stack:" >&2
+        echo "[${timestamp}] [ERROR] log() called with insufficient arguments" >&2
+        echo "[${timestamp}] [DEBUG] Called from: ${BASH_SOURCE[1]:-unknown}:${BASH_LINENO[0]:-0} with args: $*" >&2
+        echo "[${timestamp}] [DEBUG] Call stack:" >&2
         local i=0
         while caller $i; do
             ((i++))
@@ -64,44 +68,74 @@ log() {
     fi
     
     local level="$1"
-    local message="$2"
+    local message="${2:-}"
     local exit_code="${3:-}"
-    local timestamp
-    timestamp="$(date '+%Y-%m-%d %H:%M:%S')" || timestamp="[timestamp-error]"
     
     # Map level to numeric value
     local level_num
     case "${level^^}" in
-        "DEBUG") level_num=0 ;;
-        "INFO") level_num=1 ;;
-        "WARNING") level_num=2 ;;
-        "ERROR") level_num=3 ;;
-        *) level_num=1 ;; # Default to INFO
+        "DEBUG") level_num=${LOG_LEVEL_DEBUG:-0} ;;
+        "INFO") level_num=${LOG_LEVEL_INFO:-1} ;;
+        "WARNING") level_num=${LOG_LEVEL_WARNING:-2} ;;
+        "ERROR") level_num=${LOG_LEVEL_ERROR:-3} ;;
+        *) level_num=${LOG_LEVEL_INFO:-1} ;; # Default to INFO
     esac
     
     # Only log if level is at or above the current log level
-    if [ "$level_num" -ge "${LOG_LEVEL_NUM:-1}" ]; then
-        local log_entry="[${timestamp}] [${level^^}] ${message}"
+    if [ ${level_num} -ge ${LOG_LEVEL_NUM:-${LOG_LEVEL_INFO:-1}} ]; then
+        # Ensure we have a valid timestamp
+        local log_timestamp="${timestamp}"
+        if [ -z "${log_timestamp}" ] || [ "${log_timestamp}" = "timestamp-error" ]; then
+            log_timestamp="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'unknown-time')"
+        fi
+        
+        # Ensure message is not empty
+        if [ -z "${message}" ]; then
+            message="(empty message)"
+        fi
+        
+        local log_entry="[${log_timestamp}] [${level^^}] ${message}"
         
         # Print to console with color
-        case $level_num in
-            0) echo -e "\033[0;36m${log_entry}\033[0m" ;;
-            1) echo -e "\033[0;32m${log_entry}\033[0m" ;;
-            2) echo -e "\033[0;33m${log_entry}\033[0m" >&2 ;;
-            3) echo -e "\033[0;31m${log_entry}\033[0m" >&2 ;;
+        case ${level_num} in
+            ${LOG_LEVEL_DEBUG:-0}) echo -e "\033[0;36m${log_entry}\033[0m" ;;
+            ${LOG_LEVEL_INFO:-1}) echo -e "\033[0;32m${log_entry}\033[0m" ;;
+            ${LOG_LEVEL_WARNING:-2}) echo -e "\033[0;33m${log_entry}\033[0m" >&2 ;;
+            ${LOG_LEVEL_ERROR:-3}) echo -e "\033[0;31m${log_entry}\033[0m" >&2 ;;
             *) echo "${log_entry}" ;;
         esac
+        
+        # Ensure LOG_FILE is set and writable
+        if [ -z "${LOG_FILE:-}" ]; then
+            LOG_FILE="/tmp/nextcloud-setup-$(date +%s).log"
+            echo "[${log_timestamp}] [WARNING] LOG_FILE not set, using fallback: ${LOG_FILE}" >&2
+        fi
+        
+        # Create log directory if it doesn't exist
+        local log_dir
+        log_dir="$(dirname "${LOG_FILE}" 2>/dev/null || echo '/tmp')"
+        mkdir -p "${log_dir}" 2>/dev/null || {
+            echo "[${log_timestamp}] [ERROR] Failed to create log directory: ${log_dir}" >&2
+            return 1
+        }
+        
+        # Write to log file
+        if ! echo "${log_entry}" >> "${LOG_FILE}" 2>/dev/null; then
+            echo "[${log_timestamp}] [ERROR] Failed to write to log file: ${LOG_FILE}" >&2
+            return 1
+        fi
     fi
     
     # Exit if this was an error with an exit code
-    if [ "${level^^}" = "ERROR" ] && [ -n "$exit_code" ]; then
-        exit "$exit_code"
+    if [ "${level^^}" = "ERROR" ] && [ -n "${exit_code}" ]; then
+        exit ${exit_code}
     fi
+    
+    return 0
 }
 
 # Log level functions
 log_debug() { [ "${LOG_LEVEL_NUM:-1}" -le ${LOG_LEVEL_DEBUG} ] && log "DEBUG" "$@"; }
-log_info() { [ "${LOG_LEVEL_NUM:-1}" -le ${LOG_LEVEL_INFO} ] && log "INFO" "$@"; }
 log_warning() { [ "${LOG_LEVEL_NUM:-1}" -le ${LOG_LEVEL_WARNING} ] && log "WARNING" "$@"; }
 log_error() { log "ERROR" "$@" 1; }
 
