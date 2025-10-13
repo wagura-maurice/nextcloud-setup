@@ -162,7 +162,7 @@ configure_php_fpm() {
     if ! command -v "${php_fpm_service}" >/dev/null 2>&1; then
         log_error "PHP-FPM is not installed"
         return 1
-    }
+    fi
     
     # Configure PHP.ini
     log_info "Configuring PHP settings..."
