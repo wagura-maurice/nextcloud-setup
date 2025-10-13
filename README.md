@@ -1,54 +1,188 @@
 # 🚀 Nextcloud Enterprise-Grade Deployment Kit
 
-## 🚀 Quick Installation
+## 📋 Table of Contents
+- [System Requirements](#-system-requirements)
+- [Prerequisites](#-prerequisites)
+- [Installation Steps](#-installation-steps)
+  - [1. System Preparation](#1-system-preparation)
+  - [2. Install and Configure System Dependencies](#2-install-and-configure-system-dependencies)
+  - [3. Install and Configure Apache](#3-install-and-configure-apache)
+  - [4. Install and Configure MariaDB](#4-install-and-configure-mariadb)
+  - [5. Install and Configure PHP](#5-install-and-configure-php)
+  - [6. Install and Configure Redis](#6-install-and-configure-redis)
+  - [7. Install and Configure Certbot](#7-install-and-configure-certbot)
+  - [8. Install and Configure Nextcloud](#8-install-and-configure-nextcloud)
+  - [9. Final Configuration](#9-final-configuration)
+- [Post-Installation](#-post-installation)
+- [Troubleshooting](#-troubleshooting)
 
-1. **Clone the repository and change directory**:
+## 🖥️ System Requirements
+
+### Hardware Requirements
+- **CPU**: 2 cores (4+ recommended)
+- **RAM**: 2GB minimum (4GB+ recommended)
+- **Storage**: 20GB minimum (SSD recommended)
+- **Network**: 100 Mbps minimum (1 Gbps recommended)
+
+### Software Requirements
+- **OS**: Ubuntu 22.04 LTS (recommended)
+- **Web Server**: Apache 2.4+
+- **Database**: MariaDB 10.5+ or MySQL 8.0+
+- **PHP**: 8.2+
+- **Cache**: Redis 6.0+
+
+## 📋 Prerequisites
+
+1. Fresh Ubuntu 22.04 LTS installation
+2. Root or sudo privileges
+3. Domain name pointing to your server
+4. Minimum 2GB RAM (4GB+ recommended for production)
+5. Basic Linux command line knowledge
+
+## 🚀 Installation Steps
+
+### 1. System Preparation
+
+```bash
+# Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# Clone the repository
+git clone https://github.com/wagura-maurice/nextcloud-setup.git
+cd nextcloud-setup
+
+# Make all scripts executable
+chmod +x src/utilities/install/*.sh
+chmod +x src/utilities/configure/*.sh
+```
+
+### 2. Install and Configure System Dependencies
+
+```bash
+# Install system dependencies
+sudo ./src/utilities/install/install-system.sh
+# Install required tools
+sudo apt install -y git curl wget nano
+
+# Configure system dependencies
+sudo ./src/utilities/configure/configure-system.sh
+```
+
+### 3. Install and Configure Apache
+
+```bash
+# Install Apache
+sudo ./src/utilities/install/install-apache.sh
+
+# Configure Apache for Nextcloud
+sudo ./src/utilities/configure/configure-apache.sh
+```
+
+### 4. Install and Configure MariaDB
+
+```bash
+# Install MariaDB
+sudo ./src/utilities/install/install-mariadb.sh
+
+# Secure MariaDB installation
+sudo ./src/utilities/configure/configure-mariadb.sh
+```
+
+### 5. Install and Configure PHP
+
+```bash
+# Install PHP and required extensions
+sudo ./src/utilities/install/install-php.sh
+
+# Configure PHP for Nextcloud
+sudo ./src/utilities/configure/configure-php.sh
+```
+
+### 6. Install and Configure Redis
+
+```bash
+# Install Redis
+sudo ./src/utilities/install/install-redis.sh
+
+# Configure Redis for Nextcloud
+sudo ./src/utilities/configure/configure-redis.sh
+```
+
+### 7. Install and Configure Certbot
+
+```bash
+# Install Certbot for SSL certificates
+sudo ./src/utilities/install/install-certbot.sh
+
+# Configure SSL certificates
+sudo ./src/utilities/configure/configure-certbot.sh
+```
+
+### 8. Install and Configure Nextcloud
+
+```bash
+# Install Nextcloud
+sudo ./src/utilities/install/install-nextcloud.sh
+
+# Configure Nextcloud
+sudo ./src/utilities/configure/configure-nextcloud.sh
+```
+
+### 9. Final Configuration
+
+```bash
+# Set up scheduled tasks
+sudo ./src/utilities/configure/configure-cron.sh
+```
+
+## 🎉 Post-Installation
+
+1. Access your Nextcloud instance at: `https://your-domain.com`
+2. Log in with the admin credentials you set during installation
+3. Complete the setup wizard
+4. Install recommended apps from the app store
+5. Set up your users and groups
+
+## 🔍 Troubleshooting
+
+### Common Issues
+
+1. **Permission Issues**
    ```bash
-   git clone https://github.com/wagura-maurice/nextcloud-setup.git
-   cd nextcloud-setup
+   sudo chown -R www-data:www-data /var/www/nextcloud/
+   sudo chmod -R 755 /var/www/nextcloud/
    ```
 
-2. **Make installation scripts executable**:
+2. **Check Service Status**
    ```bash
-   chmod +x src/utilities/install/*.sh
+   sudo systemctl status apache2
+   sudo systemctl status mariadb
+   sudo systemctl status redis-server
    ```
 
-3. **Run the system installation**:
+3. **View Logs**
    ```bash
-   sudo ./src/utilities/install/install-system.sh
+   # Apache error log
+   sudo tail -f /var/log/apache2/error.log
+   
+   # Nextcloud log
+   sudo tail -f /var/www/nextcloud/data/nextcloud.log
    ```
 
-4. **Fix path issues** (if any):
+4. **Check Firewall**
    ```bash
-   sed -i 's|SCRIPT_DIR="\$\(cd "\$\(dirname "\${BASH_SOURCE[0]}")"/../.. && pwd)"|SCRIPT_DIR="\$\(cd "\$\(dirname "\${BASH_SOURCE[0]}")"/../.. && pwd -P)"|' src/utilities/install/install-apache.sh
+   sudo ufw status
+   sudo ufw allow 'Apache Full'
+   sudo ufw allow OpenSSH
    ```
 
-5. **Install and configure Apache**:
-   ```bash
-   sudo ./src/utilities/install/install-apache.sh
-   ```
+### Getting Help
 
-6. **Install and configure MariaDB**:
-   ```bash
-   sudo ./src/utilities/install/install-mariadb.sh
-   sudo ./src/utilities/configure/configure-mariadb.sh
-   ```
-
-7. **Install and configure PHP**:
-   ```bash
-   sudo ./src/utilities/install/install-php.sh
-   sudo ./src/utilities/configure/configure-php.sh
-   ```
-
-8. **Install Nextcloud**:
-   ```bash
-   sudo ./src/utilities/install/install-nextcloud.sh
-   ```
-
-9. **Final configuration**:
-   ```bash
-   sudo ./src/utilities/configure/configure-nextcloud.sh
-   ```
+If you encounter any issues, please check the following:
+- Verify all services are running
+- Check file permissions
+- Review the logs mentioned above
+- Ensure your domain's DNS is properly configured
 
 ### Troubleshooting
 
@@ -361,17 +495,12 @@ This will install and configure all components in the correct order.
 
 Once the installation is complete, open your web browser and navigate to:
 ```
-https://your-domain.com
-```
-
-Log in with the admin credentials you set in the configuration file.
-
-## 🛠️ Using the CLI Tool
 
 The Nextcloud CLI tool provides a unified interface for all management tasks:
 
 ### Install Specific Components
 ```bash
+{{ ... }}
 # Install just the database
 ./nextcloud-setup install mariadb
 
