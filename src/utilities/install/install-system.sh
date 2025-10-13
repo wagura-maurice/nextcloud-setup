@@ -1,13 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# Set fixed paths based on the known repository structure
-if [ -z "${PROJECT_ROOT:-}" ]; then
-    # If not set by parent script, use default
-    PROJECT_ROOT="/root/nextcloud-setup"
-fi
-
-# Define core directories relative to PROJECT_ROOT
+# Set project root and core directories
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+PROJECT_ROOT="${SCRIPT_DIR}"
 CORE_DIR="${PROJECT_ROOT}/src/core"
 SRC_DIR="${PROJECT_ROOT}/src"
 UTILS_DIR="${SRC_DIR}/utilities"
@@ -24,8 +20,14 @@ mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
 chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
 
 # Load core utilities
-source "${CORE_DIR}/env-loader.sh" 2>/dev/null || true
-source "${CORE_DIR}/config-manager.sh" 2>/dev/null || true
+source "${CORE_DIR}/config-manager.sh" 2>/dev/null || {
+    echo "Error: Failed to load ${CORE_DIR}/config-manager.sh" >&2
+    exit 1
+}
+source "${CORE_DIR}/env-loader.sh" 2>/dev/null || {
+    echo "Error: Failed to load ${CORE_DIR}/env-loader.sh" >&2
+    exit 1
+}
 source "${CORE_DIR}/logging.sh" 2>/dev/null || {
     # Basic logging function if logging.sh is not available
     log_info() { echo "[INFO] $*"; }
