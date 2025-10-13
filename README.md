@@ -98,6 +98,99 @@ nextcloud-setup/
 
 - Ubuntu 22.04 LTS server (minimal installation recommended)
 - Root or sudo access
+- Git
+- Basic knowledge of Linux command line
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/wagura-maurice/nextcloud-setup.git
+cd nextcloud-setup
+```
+
+### 2. Configure Your Installation
+
+Copy the example configuration file and edit it with your settings:
+
+```bash
+cp config/nextcloud.conf.example config/nextcloud.conf
+nano config/nextcloud.conf
+```
+
+Update the following key settings at minimum:
+- `NEXTCLOUD_URL`: Your domain name
+- `ADMIN_EMAIL`: Your email address
+- `DB_PASS` and `DB_ROOT_PASS`: Strong database passwords
+- `NEXTCLOUD_ADMIN_PASS`: A strong admin password
+
+### 3. Run the Installation
+
+Make the setup script executable and start the installation:
+
+```bash
+chmod +x nextcloud-setup
+./nextcloud-setup install all
+```
+
+This will install and configure all components in the correct order.
+
+### 4. Access Your Nextcloud Instance
+
+Once the installation is complete, open your web browser and navigate to:
+```
+https://your-domain.com
+```
+
+Log in with the admin credentials you set in the configuration file.
+
+## 🛠️ Using the CLI Tool
+
+The Nextcloud CLI tool provides a unified interface for all management tasks:
+
+### Install Specific Components
+```bash
+# Install just the database
+./nextcloud-setup install database
+
+# Install web server and PHP
+./nextcloud-setup install webserver php
+```
+
+### Configure Components
+```bash
+# Configure all components
+./nextcloud-setup configure all
+
+# Configure just PHP and Redis
+./nextcloud-setup configure php redis
+```
+
+### Backup and Restore
+```bash
+# Create a backup
+./nextcloud-setup backup
+
+# Restore from backup
+./nextcloud-setup restore /path/to/backup.tar.gz
+```
+
+### Maintenance Tasks
+```bash
+# Run maintenance tasks
+./nextcloud-setup maintenance
+
+# Update Nextcloud
+./nextcloud-setup update
+
+# Monitor Nextcloud
+./nextcloud-setup monitor
+```
+
+### Help and Documentation
+```bash
+# Show help
+./nextcloud-setup help
+```
 - Domain name with DNS properly configured
 - SSH access to the server
 

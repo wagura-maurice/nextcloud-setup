@@ -1,0 +1,249 @@
+#!/bin/bash
+
+# Nextcloud CLI - Unified Interface for Nextcloud Setup and Maintenance
+# This script provides a single entry point for all Nextcloud operations
+
+# Set strict mode for better error handling
+set -o errexit
+set -o nounset
+set -o pipefail
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$SCRIPT_DIR"
+SRC_DIR="$PROJECT_ROOT/src"
+CORE_DIR="$SRC_DIR/core"
+SCRIPTS_DIR="$SRC_DIR/scripts"
+CONFIG_DIR="$PROJECT_ROOT/config"
+LOG_DIR="$PROJECT_ROOT/logs"
+
+# Ensure required directories exist
+mkdir -p "$LOG_DIR"
+chmod 750 "$LOG_DIR"
+
+# Source core functions and logging
+source "$CORE_DIR/common-functions.sh"
+source "$CORE_DIR/logging.sh"
+
+# Initialize logging
+init_logging
+
+# Default configuration values
+DEFAULT_CONFIG="$CONFIG_DIR/nextcloud.conf"
+
+# Load configuration if exists
+load_config() {
+    local config_file="${1:-$DEFAULT_CONFIG}"
+    if [ -f "$config_file" ]; then
+        log_info "Loading configuration from $config_file"
+        source "$config_file"
+    else
+        log_warning "No configuration file found at $config_file, using defaults"
+    fi
+}
+
+# Show usage information
+show_usage() {
+    echo "Nextcloud CLI - Unified Interface for Nextcloud Setup and Maintenance"
+    echo "Usage: $0 [command] [options]"
+    echo ""
+    echo "Commands:"
+    echo "  install [component]  Install Nextcloud components (all, nextcloud, database, webserver, php, redis, system)"
+    echo "  configure [target]   Configure system components (all, php, webserver, database, redis, system)"
+    echo "  backup               Create a backup of Nextcloud data and database"
+    echo "  restore              Restore Nextcloud from a backup"
+    echo "  update               Update Nextcloud and its components"
+    echo "  maintenance          Run maintenance tasks"
+    echo "  monitor              Monitor Nextcloud status and performance"
+    echo "  help                 Show this help message"
+    echo ""
+    echo "Options:"
+    echo "  --config FILE        Specify a custom configuration file"
+    echo "  --log-level LEVEL    Set log level (DEBUG, INFO, WARNING, ERROR)"
+    echo ""
+    exit 1
+}
+
+# Install components
+install_component() {
+    local component="${1:-all}"
+    log_section "Starting installation of $component"
+    
+    case $component in
+        all)
+            # Install all components in the correct order
+            "$SCRIPTS_DIR/install-system.sh"
+            "$SCRIPTS_DIR/install-database.sh"
+            "$SCRIPTS_DIR/install-webserver.sh"
+            "$SCRIPTS_DIR/install-php.sh"
+            "$SCRIPTS_DIR/install-redis.sh"
+            "$SCRIPTS_DIR/install-nextcloud.sh"
+            ;;
+        system)
+            "$SCRIPTS_DIR/install-system.sh"
+            ;;
+        database)
+            "$SCRIPTS_DIR/install-database.sh"
+            ;;
+        webserver)
+            "$SCRIPTS_DIR/install-webserver.sh"
+            ;;
+        php)
+            "$SCRIPTS_DIR/install-php.sh"
+            ;;
+        redis)
+            "$SCRIPTS_DIR/install-redis.sh"
+            ;;
+        nextcloud)
+            "$SCRIPTS_DIR/install-nextcloud.sh"
+            ;;
+        *)
+            log_error "Unknown component: $component"
+            show_usage
+            ;;
+    esac
+    
+    log_success "Installation of $component completed"
+}
+
+# Configure components
+configure_component() {
+    local component="${1:-all}"
+    log_section "Configuring $component"
+    
+    case $component in
+        all)
+            # Configure all components in the correct order
+            "$SRC_DIR/config/configure-system.sh"
+            "$SRC_DIR/config/configure-database.sh"
+            "$SRC_DIR/config/configure-php.sh"
+            "$SRC_DIR/config/configure-redis.sh"
+            "$SRC_DIR/config/configure-webserver.sh"
+            ;;
+        system)
+            "$SRC_DIR/config/configure-system.sh"
+            ;;
+        database)
+            "$SRC_DIR/config/configure-database.sh"
+            ;;
+        php)
+            "$SRC_DIR/config/configure-php.sh"
+            ;;
+        redis)
+            "$SRC_DIR/config/configure-redis.sh"
+            ;;
+        webserver)
+            "$SRC_DIR/config/configure-webserver.sh"
+            ;;
+        *)
+            log_error "Unknown component: $component"
+            show_usage
+            ;;
+    esac
+    
+    log_success "Configuration of $component completed"
+}
+
+# Backup Nextcloud
+backup_nextcloud() {
+    log_section "Starting Nextcloud backup"
+    "$SRC_DIR/lib/backup-nextcloud.sh"
+    log_success "Backup completed successfully"
+}
+
+# Restore Nextcloud
+restore_nextcloud() {
+    local backup_file="$1"
+    log_section "Starting Nextcloud restore from $backup_file"
+    
+    if [ ! -f "$backup_file" ]; then
+        log_error "Backup file not found: $backup_file"
+        exit 1
+    fi
+    
+    "$SRC_DIR/lib/restore-nextcloud.sh" "$backup_file"
+    log_success "Restore completed successfully"
+}
+
+# Update Nextcloud
+update_nextcloud() {
+    log_section "Updating Nextcloud"
+    "$SRC_DIR/lib/update-nextcloud.sh"
+    log_success "Update completed successfully"
+}
+
+# Run maintenance tasks
+run_maintenance() {
+    log_section "Running maintenance tasks"
+    "$SRC_DIR/lib/maintenance-tasks.sh"
+    log_success "Maintenance tasks completed successfully"
+}
+
+# Monitor Nextcloud
+monitor_nextcloud() {
+    log_section "Monitoring Nextcloud"
+    "$SRC_DIR/lib/monitor-nextcloud.sh"
+}
+
+# Main function
+main() {
+    # Parse command line arguments
+    local command="${1:-help}"
+    shift
+    
+    # Handle global options
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --config)
+                shift
+                load_config "$1"
+                shift
+                ;;
+            --log-level)
+                shift
+                LOG_LEVEL="$1"
+                shift
+                ;;
+            *)
+                break
+                ;;
+        esac
+    done
+    
+    # Execute command
+    case "$command" in
+        install)
+            install_component "$@"
+            ;;
+        configure)
+            configure_component "$@"
+            ;;
+        backup)
+            backup_nextcloud
+            ;;
+        restore)
+            restore_nextcloud "$@"
+            ;;
+        update)
+            update_nextcloud
+            ;;
+        maintenance)
+            run_maintenance
+            ;;
+        monitor)
+            monitor_nextcloud
+            ;;
+        help|--help|-h)
+            show_usage
+            ;;
+        *)
+            log_error "Unknown command: $command"
+            show_usage
+            ;;
+    esac
+}
+
+# Run the main function
+main "$@"
+
+exit 0
