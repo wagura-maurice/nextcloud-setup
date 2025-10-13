@@ -240,16 +240,24 @@ export -f log log_debug log_info log_warning log_error run_command init_logging
 # Usage: log <level> <message> [exit_code]
 log() {
     local level="$1"
-    local message="$2"
+    local message="${2:-}"
     local exit_code="${3:-}"
+    
+    # Ensure we have a valid timestamp
     local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo 'timestamp-error')"
+    
+    # Ensure message is not empty
+    if [ -z "$message" ]; then
+        message="(empty message)"
+    fi
     
     # Map level to numeric value
     local level_num
-    level_num=$(map_log_level "$level")
+    level_num=$(map_log_level "$level" 2>/dev/null || echo 1)  # Default to INFO level if mapping fails
     
-    # Create log entry
-    local log_entry="[$timestamp] [${level^^}] $message"
+    # Create log entry with timestamp
+    local log_entry="[${timestamp}] [${level^^}] ${message}"
     
     # Only process if level is at or above the current log level
     if [[ $level_num -ge $LOG_LEVEL_NUM ]]; then
