@@ -1,8 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-# Set project root
-PROJECT_ROOT="/root/nextcloud-setup"
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+
+# Set project root and core directories
+PROJECT_ROOT="${SCRIPT_DIR}"
 SRC_DIR="${PROJECT_ROOT}/src"
 CORE_DIR="${SRC_DIR}/core"
 UTILS_DIR="${SRC_DIR}/utilities"
@@ -11,7 +14,19 @@ UTILS_DIR="${SRC_DIR}/utilities"
 export PROJECT_ROOT SRC_DIR CORE_DIR UTILS_DIR
 
 # Add core directory to PATH
-PATH="${CORE_DIR}:${PATH}"
+export PATH="${CORE_DIR}:${PATH}"
+
+# Debug output
+echo "PROJECT_ROOT: ${PROJECT_ROOT}" >&2
+echo "CORE_DIR: ${CORE_DIR}" >&2
+
+# Verify core files exist
+for file in "${CORE_DIR}/config-manager.sh" "${CORE_DIR}/env-loader.sh" "${CORE_DIR}/logging.sh"; do
+    if [[ ! -f "${file}" ]]; then
+        echo "Error: Required file not found: ${file}" >&2
+        exit 1
+    fi
+done
 
 # Load core configuration and utilities
 source "${CORE_DIR}/config-manager.sh"
