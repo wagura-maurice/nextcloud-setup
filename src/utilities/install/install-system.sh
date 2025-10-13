@@ -72,27 +72,42 @@ install_packages() {
 }
 
 # Function to update package lists
-{{ ... }}
+update_package_lists() {
+    log_info "Updating package lists..."
+    
+    # Update package lists
+    if ! DEBIAN_FRONTEND=noninteractive ${PACKAGE_MANAGER} update -y; then
+        log_error "Failed to update package lists"
+        return 1
+    fi
+    
+    # Upgrade existing packages
+    if ! DEBIAN_FRONTEND=noninteractive ${PACKAGE_MANAGER} upgrade -y; then
+        log_warning "Failed to upgrade all packages, but continuing..."
+    fi
+    
+    # Install required package for add-apt-repository
+    if ! command -v add-apt-repository >/dev/null 2>&1; then
+        if ! DEBIAN_FRONTEND=noninteractive ${PACKAGE_MANAGER} install -y software-properties-common; then
+            log_warning "Failed to install software-properties-common, some repositories might not be available"
+        fi
+    fi
+    
+    # Clean up
+    ${PACKAGE_MANAGER} clean -y
+    ${PACKAGE_MANAGER} autoremove -y
     rm -rf /var/lib/apt/lists/*
+    
+    return 0
 }
 
 # Main installation function
 install_system_dependencies() {
-    log_section "Installing system dependencies"
-    
-    # Update package lists
-    if ! update_package_lists; then
-        log_error "Failed to update package lists"
-        return 1
-    fi
-    # Install packages in logical groups
     log_info "Installing system packages..."
     if ! install_packages "${SYSTEM_PACKAGES[@]}"; then
         log_error "Failed to install system packages"
         return 1
     fi
-    
-    log_info "Installing monitoring tools..."
     if ! install_packages "${MONITORING_TOOLS[@]}"; then
         log_warning "Some monitoring tools failed to install, but continuing..."
     fi
