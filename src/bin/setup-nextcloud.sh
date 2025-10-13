@@ -18,7 +18,8 @@ set -euo pipefail
 
 # Set script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="${SCRIPT_DIR}"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
+CORE_DIR="${PROJECT_ROOT}/src/core"
 
 # Set up logging
 LOG_DIR="${PROJECT_ROOT}/logs"
@@ -79,6 +80,7 @@ log() {
 
 # Try to load the environment
 if [ -f "${CORE_DIR}/env-loader.sh" ]; then
+    echo "Loading environment from ${CORE_DIR}/env-loader.sh"
     source "${CORE_DIR}/env-loader.sh"
     
     # Initialize logging if the function exists
