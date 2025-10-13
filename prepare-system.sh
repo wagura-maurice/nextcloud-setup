@@ -89,35 +89,87 @@ EOL
 cat > /etc/letsencrypt/renewal-hooks/post/start-webserver << 'EOL'
 #!/bin/sh
 systemctl start apache2
-EOL
 
 # Make hooks executable
 chmod +x /etc/letsencrypt/renewal-hooks/pre/stop-webserver
 chmod +x /etc/letsencrypt/renewal-hooks/post/start-webserver
 
-echo "=== System Preparation Complete ==="
+# Ensure setup-nextcloud.sh is executable when cloned
+echo "Setting up Nextcloud setup script..."
+if [ -f "${PROJECT_ROOT}/src/bin/setup-nextcloud.sh" ]; then
+    # Make the script executable
+    chmod +x "${PROJECT_ROOT}/src/bin/setup-nextcloud.sh"
+    
+    # Create a launcher script in the project root for setup
+    cat > "${PROJECT_ROOT}/setup-nextcloud" << 'EOL'
+#!/bin/bash
+# Launcher script for nextcloud-setup
+# This file is auto-generated - do not edit directly
 
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Execute the main setup script with the correct working directory
+(cd "$SCRIPT_DIR" && ./src/bin/setup-nextcloud.sh "$@")
+EOL
+    
+    # Make the setup launcher executable
+    chmod +x "${PROJECT_ROOT}/setup-nextcloud"
+    
+    # Ensure manage-nextcloud.sh is executable
+    chmod +x "${PROJECT_ROOT}/src/bin/manage-nextcloud.sh"
+    
+    # Create a launcher script for management
+    cat > "${PROJECT_ROOT}/manage-nextcloud" << 'EOL'
+#!/bin/bash
+# Launcher script for nextcloud-management
+# This file is auto-generated - do not edit directly
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Execute the management script with the correct working directory
+(cd "$SCRIPT_DIR" && ./src/bin/manage-nextcloud.sh "$@")
+EOL
+    
+    # Make the management launcher executable
+    chmod +x "${PROJECT_ROOT}/manage-nextcloud"
+    
+    echo "Nextcloud setup is ready to use. Run the following commands:"
+    echo "  ./setup-nextcloud        # Run the setup"
+    echo "  ./manage-nextcloud       # Manage your installation"
+else
+    echo "Warning: setup-nextcloud.sh not found in ${PROJECT_ROOT}/src/bin/"
+fi
+
+echo "=== System Preparation Complete ==="
 # Check if running as root
 if [ "$(id -u)" -eq 0 ]; then
     echo "\n=== Starting Nextcloud Setup ==="
     echo "Running nextcloud-setup.sh to configure and install all required components..."
     
-    # Check if nextcloud-setup.sh exists and is executable
-    if [ -x "${PROJECT_ROOT}/nextcloud-setup.sh" ]; then
-        # Run the setup script with the same user who owns the project directory
-        sudo -u "$(stat -c '%U' "${PROJECT_ROOT}")" "${PROJECT_ROOT}/nextcloud-setup.sh"
+    # Check if the launcher exists and is executable
+    if [ -x "${PROJECT_ROOT}/setup-nextcloud" ]; then
+        # Run the launcher with the same user who owns the project directory
+        sudo -u "$(stat -c '%U' "${PROJECT_ROOT}")" "${PROJECT_ROOT}/setup-nextcloud"
     else
-        echo "Error: nextcloud-setup.sh not found or not executable in ${PROJECT_ROOT}/"
-        echo "Please ensure the file exists and has execute permissions."
+        echo "Error: setup-nextcloud launcher not found or not executable in ${PROJECT_ROOT}/"
+        echo "Please ensure the preparation completed successfully."
         exit 1
     fi
 else
-    echo "\n=== Next Steps ==="
-    echo "1. Install certbot: sudo apt install certbot python3-certbot-apache"
-    echo "2. Obtain SSL certificate:"
-    echo "   sudo certbot --apache -d cloud.e-granary.com --non-interactive --agree-tos --email support@e-granary.com"
-    echo "3. Test renewal: sudo certbot renew --dry-run"
-    echo "4. Run the Nextcloud setup:"
-    echo "   cd ${PROJECT_ROOT} && sudo -E ./nextcloud-setup.sh"
-    echo "\nNote: The setup script requires root privileges to install system packages and configure services."
+    echo "\n❌ ERROR: This script must be run as root (or with sudo)" >&2
+    echo "\nThe Nextcloud installation requires root privileges to perform the following actions:"
+    echo "- Install system packages and dependencies"
+    echo "- Configure system services (Apache, MySQL, etc.)"
+    echo "- Set up SSL certificates"
+    echo "- Create and configure system users and directories"
+    echo "- Apply security settings"
+    echo "\nPlease run the script again with root privileges:"
+    echo "  sudo ./prepare-system.sh"
+    echo "\nIf you're setting up a production environment, ensure you have:"
+    echo "1. A domain name pointing to this server"
+    echo "2. Sufficient system resources (2GB+ RAM recommended)"
+    echo "3. Backups of any existing data"
+    exit 1
 fi

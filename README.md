@@ -92,6 +92,49 @@ nextcloud-setup/
 - **Firewall**: Properly configured firewall (UFW recommended)
 - **Monitoring**: Basic server monitoring tools
 
+## 🛠️ System Preparation
+
+Before running the main setup, you'll need to prepare your system by running the `prepare-system.sh` script. This script sets up the required directory structure and permissions.
+
+### Prerequisites
+- Linux-based system (Ubuntu/Debian recommended)
+- Sudo privileges
+- Basic system utilities (git, curl, etc.)
+
+### Running the Preparation Script
+
+1. **Make the script executable** (if not already):
+   ```bash
+   chmod +x prepare-system.sh
+   ```
+
+2. **Run the script with sudo** (requires root privileges):
+   ```bash
+   sudo ./prepare-system.sh
+   ```
+
+### What the Script Does
+
+1. **Creates Required Directories**:
+   - `logs/`: For storing system and application logs
+   - `config/`: For configuration files
+   - `data/`: For application data
+
+2. **Sets Up Permissions**:
+   - Ensures proper ownership and permissions for web server access
+   - Creates necessary system directories
+   - Sets up log rotation
+
+3. **Environment Setup**:
+   - Creates a `.env` file from `.env.example` if it doesn't exist
+   - Sets up proper permissions for sensitive files
+
+### Troubleshooting
+
+- **Permission Denied Errors**: Ensure you're running the script with `sudo`
+- **Missing Dependencies**: The script will attempt to install required packages automatically
+- **Logs**: Check the log file in `logs/prepare-*.log` for detailed output
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -99,14 +142,134 @@ nextcloud-setup/
 - Ubuntu 22.04 LTS server (minimal installation recommended)
 - Root or sudo access
 - Git
-- Basic knowledge of Linux command line
+- Domain name pointing to your server (for SSL certificates)
+- Minimum 2GB RAM (4GB+ recommended for production)
 
-### 1. Clone the Repository
+### 1. Clone and Prepare
 
 ```bash
+# Clone the repository
 git clone https://github.com/wagura-maurice/nextcloud-setup.git
 cd nextcloud-setup
+
+# Make the preparation script executable and run it
+chmod +x prepare-system.sh
+sudo ./prepare-system.sh
 ```
+
+### 2. Configure Your Installation
+
+Edit the `.env` file to set your preferences:
+
+```bash
+# Copy the example config if it doesn't exist
+cp .env.example .env
+
+# Edit the configuration
+nano .env  # or use your preferred text editor
+```
+
+Key settings to configure:
+- `NEXTCLOUD_DOMAIN`: Your domain name (e.g., cloud.yourdomain.com)
+- `NEXTCLOUD_ADMIN_USER`: Desired admin username
+- `NEXTCLOUD_ADMIN_PASSWORD`: Strong admin password
+- `MYSQL_ROOT_PASSWORD`: Secure MySQL root password
+- `NEXTCLOUD_DB_PASSWORD`: Secure database password for Nextcloud
+
+### 3. Run the Installation
+
+```bash
+# Start the installation process
+./setup-nextcloud
+```
+
+The installer will:
+1. Install all required dependencies
+2. Configure the web server and database
+3. Set up SSL certificates (Let's Encrypt)
+4. Install and configure Nextcloud
+5. Optimize system settings for performance
+
+### 4. Access Your Nextcloud Instance
+
+Once installation completes, access your Nextcloud at:
+```
+https://cloud.yourdomain.com
+```
+
+### 5. Post-Installation
+
+1. **Verify Installation**:
+   ```bash
+   # Check system status
+   ./manage-nextcloud status
+   ```
+
+2. **Regular Maintenance**:
+   ```bash
+   # Perform system updates and maintenance
+   ./manage-nextcloud maintenance
+   ```
+
+3. **Backup Your Data**:
+   ```bash
+   # Create a complete backup
+   ./manage-nextcloud backup
+   ```
+
+### 6. Getting Help
+
+- View available commands:
+  ```bash
+  ./manage-nextcloud help
+  ```
+- Check logs:
+  ```bash
+  sudo tail -f /var/log/nextcloud/nextcloud.log
+  ```
+
+## 📋 Project Structure
+
+```
+/
+├── src/                    # Source code
+│   ├── bin/               # Main executable scripts
+│   │   ├── setup-nextcloud.sh
+│   │   └── manage-nextcloud.sh
+│   └── utilities/         # Supporting scripts
+│       ├── install/       # Installation scripts
+│       └── configure/     # Configuration scripts
+├── setup-nextcloud        # Launcher for setup
+├── manage-nextcloud       # Launcher for management
+└── prepare-system.sh      # System preparation script
+```
+
+### Main Commands:
+- `./prepare-system.sh` - Initial system preparation (run once)
+- `./setup-nextcloud` - Install and configure Nextcloud
+- `./manage-nextcloud` - Manage and maintain your installation
+
+## 🛠️ Script Details
+
+### Setup Nextcloud (`./setup-nextcloud`)
+
+Launcher for the main setup script (`src/bin/setup-nextcloud.sh`). Handles the complete installation and configuration of:
+- System dependencies
+- Web server (Apache/Nginx)
+- PHP and extensions
+- Database (MariaDB/PostgreSQL)
+- Redis caching
+- SSL certificates (Let's Encrypt)
+- Nextcloud core installation
+
+### Nextcloud Manager (`./manage-nextcloud`)
+
+Launcher for the management script (`src/bin/manage-nextcloud.sh`). Provides tools for:
+- Backup and restore operations
+- System maintenance
+- Performance optimization
+- Security checks
+- Monitoring and logging
 
 ### 2. Configure Your Installation
 

@@ -1,0 +1,9 @@
+#!/bin/bash
+# Launcher script for Nextcloud setup
+# This points to the actual script in src/bin/
+
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Execute the main setup script with the correct working directory
+(cd "$SCRIPT_DIR" && ./src/bin/setup-nextcloud.sh "$@")
