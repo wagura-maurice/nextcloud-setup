@@ -1,17 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
-# Set script directory and project root
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "${SCRIPT_DIR}/../../" && pwd)"
+# Set fixed paths based on the known repository structure
+PROJECT_ROOT="/root/nextcloud-setup"
 CORE_DIR="${PROJECT_ROOT}/src/core"
 
 # Export environment variables
-export SCRIPT_DIR PROJECT_ROOT CORE_DIR
+export PROJECT_ROOT CORE_DIR
 
-# Set default environment variables
+# Set other default environment variables
 : "${SRC_DIR:=${PROJECT_ROOT}/src}"
-: "${CORE_DIR:=${SRC_DIR}/core}"
 : "${UTILS_DIR:=${SRC_DIR}/utilities}"
 : "${LOG_DIR:=${PROJECT_ROOT}/logs}"
 : "${CONFIG_DIR:=${PROJECT_ROOT}/config}"
