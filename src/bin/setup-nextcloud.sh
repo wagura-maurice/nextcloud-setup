@@ -1,25 +1,18 @@
 #!/bin/bash
 
-# Nextcloud CLI - Unified Interface for Nextcloud Setup and Maintenance
-# This script provides a single entry point for all Nextcloud operations
+# Nextcloud Setup Script
+# This script initializes the environment and runs the Nextcloud setup process in the correct order
 
 # Set strict mode for better error handling
 set -o errexit
 set -o nounset
 set -o pipefail
 
-#!/bin/bash
-
-# Nextcloud Setup Script
-# This script initializes the environment and starts the Nextcloud setup process
-
-# Exit on any error
-set -euo pipefail
-
 # Set script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 CORE_DIR="${PROJECT_ROOT}/src/core"
+UTILS_DIR="${PROJECT_ROOT}/src/utilities/install"
 
 # Set up logging
 LOG_DIR="${PROJECT_ROOT}/logs"
@@ -37,6 +30,23 @@ touch "${LOG_FILE}" 2>/dev/null || {
 }
 chmod 640 "${LOG_FILE}" 2>/dev/null || true
 SCRIPT_NAME="$(basename "${BASH_SOURCE[0]}")"
+
+# Define installation order
+readonly INSTALL_ORDER=(
+    "system"
+    "php"
+    "mariadb"
+    "apache"
+    "redis"
+    "certbot"
+    "nextcloud"
+)
+
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
 # Export paths
 export SCRIPT_DIR PROJECT_ROOT SCRIPT_NAME
@@ -78,26 +88,105 @@ log() {
     fi
 }
 
-# Try to load the environment
-if [ -f "${CORE_DIR}/env-loader.sh" ]; then
-    echo "Loading environment from ${CORE_DIR}/env-loader.sh"
-    source "${CORE_DIR}/env-loader.sh"
-    
-    # Initialize logging if the function exists
-    if type -t init_logging >/dev/null 2>&1; then
-        if ! init_logging; then
-            log "WARNING" "Failed to initialize logging, using fallback"
+# Load environment and common functions
+load_environment() {
+    # Source environment loader if it exists
+    if [ -f "${CORE_DIR}/env-loader.sh" ]; then
+        echo -e "${GREEN}Loading environment from ${CORE_DIR}/env-loader.sh${NC}"
+        if ! source "${CORE_DIR}/env-loader.sh"; then
+            echo -e "${RED}Failed to load environment${NC}" >&2
+            return 1
+        fi
+    else
+        echo -e "${YELLOW}Warning: env-loader.sh not found in ${CORE_DIR}${NC}" >&2
+    fi
+
+    # Source common functions if they exist
+    if [ -f "${CORE_DIR}/common-functions.sh" ]; then
+        if ! source "${CORE_DIR}/common-functions.sh"; then
+            echo -e "${YELLOW}Warning: Failed to load common functions${NC}" >&2
         fi
     fi
     
-    # Load common functions if they exist
-    if [ -f "${CORE_DIR}/common-functions.sh" ]; then
-        source "${CORE_DIR}/common-functions.sh"
+    return 0
+}
+
+# Log a message with timestamp
+log() {
+    local level="${1:-INFO}"
+    shift
+    local message="$*"
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Log to file
+    echo "[${timestamp}] [${level}] ${message}" | tee -a "${LOG_FILE}" >&2
+}
+
+# Run a command with error handling
+run_command() {
+    local cmd="$*"
+    log "EXEC" "Running: ${cmd}"
+    
+    if eval "${cmd}"; then
+        log "SUCCESS" "Command completed successfully"
+        return 0
+    else
+        local status=$?
+        log "ERROR" "Command failed with status ${status}: ${cmd}"
+        return $status
     fi
-else
-    log "ERROR" "env-loader.sh not found in ${CORE_DIR}"
-    exit 1
-fi
+}
+
+# Install a component
+install_component() {
+    local component="$1"
+    local script_path="${UTILS_DIR}/install-${component}.sh"
+    
+    if [ ! -f "${script_path}" ]; then
+        log "ERROR" "Installation script not found: ${script_path}"
+        return 1
+    fi
+    
+    log "INFO" "Installing ${component}..."
+    
+    # Make the script executable
+    chmod +x "${script_path}"
+    
+    # Run the installation script
+    if ! bash -x "${script_path}"; then
+        log "ERROR" "Failed to install ${component}"
+        return 1
+    fi
+    
+    log "SUCCESS" "Successfully installed ${component}"
+    return 0
+}
+
+# Main installation function
+run_installation() {
+    log "INFO" "Starting Nextcloud installation process"
+    
+    # Create required directories
+    mkdir -p "${LOG_DIR}" "${PROJECT_ROOT}/config"
+    
+    # Load environment
+    if ! load_environment; then
+        log "ERROR" "Failed to load environment"
+        return 1
+    fi
+    
+    # Run installations in order
+    for component in "${INSTALL_ORDER[@]}"; do
+        if ! install_component "${component}"; then
+            log "ERROR" "Installation failed at component: ${component}"
+            return 1
+        fi
+    done
+    
+    log "SUCCESS" "Nextcloud installation completed successfully"
+    return 0
+}
 
 # Set up project directory structure
 : "${SRC_DIR:=${PROJECT_ROOT}/src}"
@@ -528,92 +617,61 @@ update_nextcloud() {
     log_success "Nextcloud update completed successfully"
 }
 
-# Main function to handle commands
+# Main function
 main() {
-    local command="${1:-}"
-    local component="${2:-}"
+    # Ensure we're running as root
+    if [ "$(id -u)" -ne 0 ]; then
+        echo -e "${RED}Error: This script must be run as root${NC}" >&2
+        echo -e "Please run with: ${YELLOW}sudo $0${NC}" >&2
+        exit 1
+    fi
     
-    case "$command" in
+    # Parse command line arguments
+    local command="${1:-install}"
+    
+    case "${command}" in
         install)
-            if [ -z "$component" ]; then
-                log_error "No component specified for installation"
-                show_usage
+            echo -e "${GREEN}Starting Nextcloud installation...${NC}"
+            if ! run_installation; then
+                echo -e "${RED}Installation failed. Check ${LOG_FILE} for details.${NC}" >&2
                 exit 1
             fi
-            
-            if [ "$component" = "all" ]; then
-                for comp in "${INSTALL_ORDER[@]}"; do
-                    install_component "$comp"
-                done
-            else
-                install_component "$component"
-            fi
             ;;
             
-        configure)
-            if [ -z "$component" ]; then
-                log_error "No component specified for configuration"
-                show_usage
-                exit 1
-            fi
-            
-            if [ "$component" = "all" ]; then
-                for comp in "${CONFIG_ORDER[@]}"; do
-                    configure_component "$comp"
-                done
-            else
-                configure_component "$component"
-            fi
-            ;;
-            
-        update)
-            update_nextcloud
-            ;;
         status)
-        # Show detailed status of all components
-        log_section "Nextcloud Setup - Component Status"
-        echo -e "\n\033[1mComponent          Installed  Configured  Status\033[0m"
-        echo "------------------------------------------------"
-        
-        # Check each component
-        for comp in "${INSTALL_ORDER[@]}" "$LETSENCRYPT_COMPONENT"; do
-            local installed=false
-            local configured=false
-            local status="Not Running"
+            echo -e "\n${GREEN}Nextcloud Installation Status${NC}"
+            echo "=============================="
             
-            # Check if component is installed
-            if is_component_installed "$comp"; then
-                installed=true
-                
-                # Check if component is running
-                if is_component_running "$comp"; then
-                    status="Running"
+            for component in "${INSTALL_ORDER[@]}"; do
+                local status_file="/tmp/nc_${component}_installed"
+                if [ -f "${status_file}" ]; then
+                    echo -e "${GREEN}✓${NC} ${component} is installed"
+                else
+                    echo -e "${YELLOW}✗${NC} ${component} is not installed"
                 fi
-                
-                # Check if component is configured
-                if is_component_configured "$comp"; then
-                    configured=true
-                fi
-            fi
+            done
             
-            # Format output with colors
-            local installed_icon=$([[ "$installed" == true ]] && echo -e "\033[0;32m✓\033[0m" || echo -e "\033[0;31m✗\033[0m")
-            local configured_icon=$([[ "$configured" == true ]] && echo -e "\033[0;32m✓\033[0m" || echo -e "\033[0;33m✗\033[0m")
+            echo -e "\nCheck ${LOG_FILE} for detailed logs."
+            ;;
             
-            # Color status based on state
-            if [[ "$status" == "Running" ]]; then
-                status="\033[0;32m$status\033[0m"
-            else
-                status="\033[0;31m$status\033[0m"
-            fi
+        help|--help|-h)
+            echo -e "${GREEN}Nextcloud Setup Script${NC}"
+            echo "Usage: $0 [command]"
+            echo ""
+            echo "Commands:"
+            echo "  install    Run the full installation (default)"
+            echo "  status     Show installation status"
+            echo "  help       Show this help message"
+            ;;
             
-            # Print component status
-            printf "%-18s %-10s %-11s %-20s\n" "$comp" "$installed_icon" "$configured_icon" "$status"
-        done
-            show_usage
+        *)
+            echo -e "${RED}Unknown command: ${command}${NC}" >&2
+            echo "Use '$0 help' for usage information." >&2
             exit 1
             ;;
     esac
-    
-    log_info "Operation completed successfully"
+}
+
+# Run the main function
+main "$@"
 }
