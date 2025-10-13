@@ -34,14 +34,21 @@ chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
 ENV_FILE="${PROJECT_ROOT}/.env"
 
 # Set default environment variables
-: "${LOG_LEVEL:="INFO"}"
 : "${PROJECT_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+: "${SRC_DIR:=${PROJECT_ROOT}/src}"
+: "${CORE_DIR:=${SRC_DIR}/core}"
+: "${UTILS_DIR:=${SRC_DIR}/utilities}"
 : "${LOG_DIR:=${PROJECT_ROOT}/logs}"
+: "${CONFIG_DIR:=${PROJECT_ROOT}/config}"
+: "${DATA_DIR:=${PROJECT_ROOT}/data}"
+: "${LOG_LEVEL:="INFO"}"
 : "${LOG_FILE:=${LOG_DIR}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log}"
 
-# Ensure log directory exists
-mkdir -p "${LOG_DIR}"
-chmod 750 "${LOG_DIR}"
+export PROJECT_ROOT SRC_DIR CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR LOG_LEVEL LOG_FILE
+
+# Create required directories with proper permissions
+mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
+chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
 
 # Simple log function for early initialization
 log() {

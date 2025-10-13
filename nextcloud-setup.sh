@@ -16,7 +16,7 @@ set -o pipefail
 # Exit on any error
 set -euo pipefail
 
-# Set script directory
+# Set script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="${SCRIPT_DIR}"
 
@@ -36,17 +36,38 @@ export SCRIPT_DIR PROJECT_ROOT
 export SRC_DIR CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR LOG_LEVEL LOG_FILE
 
 # Create required directories with proper permissions
-mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
-chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"
+mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
+chmod 750 "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"
 
 # Simple logging function if we can't load the proper one
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$1] ${*:2}" | tee -a "${LOG_FILE}"
+    local timestamp
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo '[timestamp-error]')"
+    
+    if [ $# -ge 2 ]; then
+        local level="$1"
+        shift
+        echo "[${timestamp}] [${level}] $*" | tee -a "${LOG_FILE}" >&2
+    else
+        echo "[${timestamp}] [INFO] $*" | tee -a "${LOG_FILE}" >&2
+    fi
 }
 
 # Try to load the environment
 if [ -f "${CORE_DIR}/env-loader.sh" ]; then
     source "${CORE_DIR}/env-loader.sh"
+    
+    # Initialize logging if the function exists
+    if type -t init_logging >/dev/null 2>&1; then
+        if ! init_logging; then
+            log "WARNING" "Failed to initialize logging, using fallback"
+        fi
+    fi
+    
+    # Load common functions if they exist
+    if [ -f "${CORE_DIR}/common-functions.sh" ]; then
+        source "${CORE_DIR}/common-functions.sh"
+    fi
 else
     log "ERROR" "env-loader.sh not found in ${CORE_DIR}"
     exit 1

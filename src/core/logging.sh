@@ -66,7 +66,7 @@ log() {
     local message="$2"
     local exit_code="${3:-}"
     local timestamp
-    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    timestamp="$(date '+%Y-%m-%d %H:%M:%S')" || timestamp="[timestamp-error]"
     
     # Map level to numeric value
     local level_num
@@ -123,15 +123,33 @@ run_command() {
 
 # Initialize logging
 init_logging() {
-    # Create log file if it doesn't exist
-    touch "$LOG_FILE"
-    chmod 640 "$LOG_FILE"
+    # Ensure LOG_FILE is set
+    : "${LOG_FILE:=${LOG_DIR:-/tmp}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log}"
+    
+    # Create log directory if it doesn't exist
+    local log_dir="$(dirname "$LOG_FILE")"
+    mkdir -p "$log_dir" || {
+        echo "Failed to create log directory: $log_dir" >&2
+        return 1
+    }
+    
+    # Create log file with appropriate permissions
+    if ! touch "$LOG_FILE" 2>/dev/null; then
+        echo "Failed to create log file: $LOG_FILE" >&2
+        LOG_FILE="/tmp/nextcloud-setup-$(date +%s).log"
+        touch "$LOG_FILE" || {
+            echo "Failed to create fallback log file: $LOG_FILE" >&2
+            return 1
+        }
+    fi
+    
+    chmod 640 "$LOG_FILE" 2>/dev/null || true
     
     # Log script start
-    log_info "=== Logging initialized ==="
-    log_info "Project Root: ${PROJECT_ROOT:-Not set}"
-    log_info "Log file: ${LOG_FILE}"
-    log_info "Log level: ${LOG_LEVEL} (${LOG_LEVEL_NUM:-1})"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] === Logging initialized ===" >> "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Project Root: ${PROJECT_ROOT:-Not set}" >> "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Log file: ${LOG_FILE}" >> "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [INFO] Log level: ${LOG_LEVEL:-INFO} (${LOG_LEVEL_NUM:-1})" >> "$LOG_FILE"
     
     return 0
 }
