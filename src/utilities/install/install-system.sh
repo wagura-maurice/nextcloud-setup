@@ -204,7 +204,7 @@ install_system_dependencies() {
     if ! install_essential_packages; then
         log_error "Failed to install essential packages"
         return 1
-    }
+    fi
     
     # Enable and start important services if they were installed
     if command -v ufw &> /dev/null; then
