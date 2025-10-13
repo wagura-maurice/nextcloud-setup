@@ -149,7 +149,7 @@ install_essential_packages() {
     if ! install_packages "${critical_packages[@]}"; then
         log_error "Failed to install critical packages"
         return 1
-    }
+    fi
     
     # Now install additional useful packages that might be in universe/multiverse
     local additional_packages=(
