@@ -35,7 +35,7 @@ mkdir -p "$NEXTCLOUD_ROOT" "$NEXTCLOUD_DATA"
 
 # Get latest Nextcloud version
 log_info "Fetching latest Nextcloud version..."
-LATEST_VERSION=$(curl -s https://download.nextcloud.com/server/releases/latest-26.tar.bz2 | grep -oP 'nextcloud-\d+\.\d+\.\d+' | head -1 | cut -d'-' -f2)
+LATEST_VERSION=$(curl -s https://download.nextcloud.com/server/releases/latest-31.tar.bz2 | grep -oP 'nextcloud-\d+\.\d+\.\d+' | head -1 | cut -d'-' -f2)
 
 if [ -z "$LATEST_VERSION" ]; then
     log_error "Could not determine the latest Nextcloud version"

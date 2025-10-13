@@ -1,155 +1,125 @@
 #!/bin/bash
+set -euo pipefail
 
-# Load core functions and environment
+# Load core configuration and utilities
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-source "$SCRIPT_DIR/core/common-functions.sh"
-source "$SCRIPT_DIR/core/env-loader.sh"
+source "${SCRIPT_DIR}/core/config-manager.sh"
+source "${SCRIPT_DIR}/core/env-loader.sh"
+source "${SCRIPT_DIR}/core/logging.sh"
 
 # Initialize environment and logging
 load_environment
 init_logging
 
-log_section "Installing System Dependencies"
+log_section "System Dependencies Installation"
 
-# Update package lists
-log_info "Updating package lists..."
-apt-get update
+# Configuration
+readonly PACKAGE_MANAGER="apt-get"
+readonly INSTALL_OPTS="-y --no-install-recommends"
+readonly REQUIRED_PACKAGES=(
+    # System utilities
+    apt-transport-https ca-certificates curl gnupg lsb-release
+    software-properties-common unzip wget htop net-tools vim
+    git jq supervisor logrotate cron rsync fail2ban ufw
+    locales tzdata acl sudo
+    
+    # Build essentials
+    build-essential pkg-config autoconf automake libtool make g++
+    
+    # SSL/TLS
+    openssl ssl-cert python3-pip
+    
+    # Monitoring
+    dstat iotop iftop nmon sysstat lsof strace lshw hdparm smartmontools
+)
 
-# Install essential system utilities
-log_info "Installing essential system utilities..."
-apt-get install -y --no-install-recommends \
-    apt-transport-https \
-    ca-certificates \
-    curl \
-    gnupg \
-    lsb-release \
-    software-properties-common \
-    unzip \
-    wget \
-    htop \
-    net-tools \
-    vim \
-    git \
-    jq \
-    supervisor \
-    logrotate \
-    cron \
-    rsync \
-    fail2ban \
-    ufw \
-    locales \
-    tzdata \
-    acl \
-    sudo
-
-# Install build essentials for compiling packages
-log_info "Installing build essentials..."
-apt-get install -y --no-install-recommends \
-    build-essential \
-    pkg-config \
-    autoconf \
-    automake \
-    libtool \
-    make \
-    g++
-
-# Install SSL/TLS and Let's Encrypt (Certbot)
-log_info "Installing SSL/TLS and Let's Encrypt (Certbot)..."
-apt-get install -y --no-install-recommends \
-    openssl \
-    ssl-cert \
-    certbot \
-    python3-certbot-apache \
-    python3-certbot-doc \
-    python3-certbot-nginx \
-    python3-pip
-
-# Install Certbot DNS plugins (for DNS challenges)
-pip3 install --upgrade pip
-pip3 install certbot-dns-cloudflare \
-             certbot-dns-digitalocean \
-             certbot-dns-route53 \
-             certbot-dns-google \
-             certbot-dns-cloudxns \
-             certbot-dns-luadns \
-             certbot-dns-nsone \
-             certbot-dns-rfc2136 \
-             certbot-dns-ovh \
-             certbot-dns-linode
-
-# Create directories for Let's Encrypt
-mkdir -p /etc/letsencrypt/{live,renewal,archive}
-chmod 0755 /etc/letsencrypt/{live,renewal,archive}
-
-# Create a pre and post renewal hooks directory
-mkdir -p /etc/letsencrypt/renewal-hooks/{pre,deploy,post}
-
-# Create a script to test certificate renewal (dry run)
-cat > /usr/local/bin/test-cert-renewal << 'EOF'
-#!/bin/bash
-/usr/bin/certbot renew --dry-run
-EOF
-chmod +x /usr/local/bin/test-cert-renewal
-
-# Install monitoring and debugging tools
-log_info "Installing monitoring tools..."
-apt-get install -y --no-install-recommends \
-    dstat \
-    iotop \
-    iftop \
-    nmon \
-    sysstat \
-    lsof \
-    strace \
-    lshw \
-    hdparm \
-    smartmontools
-
-# Clean up
-log_info "Cleaning up..."
-apt-get autoremove -y
-apt-get clean
-rm -rf /var/lib/apt/lists/*
-
-# Set up basic firewall rules
-log_info "Configuring firewall..."
-ufw allow ssh
-ufw allow http
-ufw allow https
-ufw --force enable
-
-# Test Let's Encrypt installation
-log_info "Testing Let's Encrypt client..."
-if command -v certbot >/dev/null 2>&1; then
-    certbot --version
-    log_success "Let's Encrypt (Certbot) is installed and working"
-else
-    log_warning "Let's Encrypt (Certbot) installation might have issues"
-fi
-
-# Create a renewal hook for Apache
-cat > /etc/letsencrypt/renewal-hooks/deploy/01-reload-apache << 'EOF'
-#!/bin/bash
-# This script will be called by certbot when a certificate is renewed
-# Reload Apache to pick up the new certificate
-if command -v apache2ctl >/dev/null 2>&1; then
-    if systemctl is-active --quiet apache2; then
-        systemctl reload apache2
-        echo "[$(date)] Apache reloaded after certificate renewal" >> /var/log/letsencrypt/renewal-hooks.log
-    else
-        echo "[$(date)] Warning: Apache is not running, could not reload" >> /var/log/letsencrypt/renewal-hooks.log
+# Function to install packages with error handling
+install_packages() {
+    local packages=("$@")
+    log_info "Installing packages: ${packages[*]}"
+    
+    if ! ${PACKAGE_MANAGER} install ${INSTALL_OPTS} "${packages[@]}"; then
+        log_error "Failed to install packages"
+        return 1
     fi
-else
-    echo "[$(date)] Error: Apache not found" >> /var/log/letsencrypt/renewal-hooks.log
+    
+    return 0
+}
+
+# Function to update package lists
+update_package_lists() {
+    log_info "Updating package lists..."
+    if ! ${PACKAGE_MANAGER} update; then
+        log_error "Failed to update package lists"
+        return 1
+    fi
+    return 0
+}
+
+# Function to configure firewall
+configure_firewall() {
+    log_info "Configuring firewall..."
+    
+    # Allow SSH, HTTP, HTTPS
+    for port in 22 80 443; do
+        if ! ufw allow "${port}" >/dev/null 2>&1; then
+            log_warning "Failed to allow port ${port} in firewall"
+        fi
+    done
+    
+    # Enable firewall
+    if ! ufw --force enable >/dev/null 2>&1; then
+        log_warning "Failed to enable UFW"
+    fi
+}
+
+# Function to clean up
+cleanup() {
+    log_info "Cleaning up..."
+    ${PACKAGE_MANAGER} autoremove -y
+    ${PACKAGE_MANAGER} clean
+    rm -rf /var/lib/apt/lists/*
+}
+
+# Main installation function
+install_system_dependencies() {
+    local success=true
+    
+    # Update package lists
+    if ! update_package_lists; then
+        success=false
+    fi
+    
+    # Install required packages
+    if ! install_packages "${REQUIRED_PACKAGES[@]}"; then
+        success=false
+    fi
+    
+    # Configure firewall
+    if ! configure_firewall; then
+        success=false
+    fi
+    
+    # Clean up
+    cleanup
+    
+    # Final status
+    if [ "${success}" = true ]; then
+        log_success "System dependencies installation completed successfully"
+        return 0
+    else
+        log_error "System dependencies installation completed with errors"
+        return 1
+    fi
+}
+
+# Main execution
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    if [[ $EUID -ne 0 ]]; then
+        log_error "This script must be run as root"
+        exit 1
+    fi
+    
+    install_system_dependencies
+    exit $?
 fi
-EOF
-chmod +x /etc/letsencrypt/renewal-hooks/deploy/01-reload-apache
-
-# Create log directory for renewal hooks
-mkdir -p /var/log/letsencrypt/
-touch /var/log/letsencrypt/renewal-hooks.log
-chmod 644 /var/log/letsencrypt/renewal-hooks.log
-
-log_success "System dependencies installation completed"
-log_info "Basic system utilities and dependencies have been installed"
-log_info "Let's Encrypt (Certbot) is ready to use"
