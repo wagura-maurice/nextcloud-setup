@@ -138,7 +138,13 @@ setup_certbot_directories() {
 # Function to create a test certificate (optional)
 create_test_certificate() {
     local domain
-    domain=$(get_config "domain" "")
+    
+    # Load domain from environment or config
+    if [ -f "${ENV_FILE}" ]; then
+        # shellcheck source=/dev/null
+        source "${ENV_FILE}"
+        domain="${DOMAIN_NAME:-}"
+    fi
     
     if [ -z "${domain}" ]; then
         log_warning "No domain configured. Skipping test certificate creation."
