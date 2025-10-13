@@ -34,7 +34,10 @@ export SCRIPT_DIR PROJECT_ROOT SCRIPT_NAME
 : "${LOG_LEVEL:="INFO"}"
 : "${LOG_FILE:=${LOG_DIR}/nextcloud-setup-$(date +%Y%m%d%H%M%S).log}"
 
+# Export all variables
 export SRC_DIR CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR LOG_LEVEL LOG_FILE
+
+export DIR_PERMS FILE_PERMS SECURE_DIR_PERMS SECURE_FILE_PERMS
 
 # Create required directories with proper permissions
 mkdir -p "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/tmp"

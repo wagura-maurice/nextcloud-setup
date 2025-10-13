@@ -30,10 +30,10 @@ set -o noclobber  # Prevent overwriting existing files with >
 export SCRIPT_DIR PROJECT_ROOT
 
 # File permissions
-readonly DIR_PERMS=750
-readonly FILE_PERMS=640
-readonly SECURE_DIR_PERMS=700
-readonly SECURE_FILE_PERMS=600
+: "${DIR_PERMS:=750}"
+: "${FILE_PERMS:=640}"
+: "${SECURE_DIR_PERMS:=700}"
+: "${SECURE_FILE_PERMS:=600}"
 
 # Exit codes
 readonly E_SUCCESS=0
