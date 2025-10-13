@@ -368,71 +368,125 @@ EOF
 verify_installation() {
     log_info "Verifying PHP installation..."
     local success=true
+    local php_ini_path="/etc/php/${PHP_VERSION}/fpm/php.ini"
+    local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/90-nextcloud.ini"
     
-    # Check PHP version
+    # Check PHP command exists
     if ! command -v "php${PHP_VERSION}" >/dev/null 2>&1; then
-        log_error "PHP ${PHP_VERSION} is not properly installed (php${PHP_VERSION} command not found)"
-        success=false
-    else
-        local php_version
-        php_version=$(php${PHP_VERSION} -r 'echo PHP_VERSION;' 2>/dev/null)
-        if [ $? -eq 0 ]; then
-            log_info "PHP version: ${php_version}"
-            
-            # Check for required PHP functions
-            local required_functions=("json_encode" "curl_init" "mb_strlen" "simplexml_load_string")
-            local missing_functions=()
-            
-            for func in "${required_functions[@]}"; do
-                if ! php${PHP_VERSION} -r "if (!function_exists('${func}')) { exit(1); }" 2>/dev/null; then
-                    missing_functions+=("${func}")
-                fi
-            done
-            
-            if [ ${#missing_functions[@]} -gt 0 ]; then
-                log_warning "Missing required PHP functions: ${missing_functions[*]}"
-                success=false
-            fi
-        else
-            log_error "Failed to get PHP version"
-            success=false
-        fi
+        log_error "❌ PHP ${PHP_VERSION} is not properly installed (php${PHP_VERSION} command not found)"
+        return 1
     fi
     
-    # Check PHP-FPM status
+    # Check PHP version
+    local php_version
+    php_version=$(php${PHP_VERSION} -r 'echo PHP_VERSION;' 2>/dev/null)
+    if [ $? -ne 0 ]; then
+        log_error "❌ Failed to get PHP version"
+        success=false
+    else
+        log_info "✅ PHP version: ${php_version}"
+    fi
+    
+    # Check PHP-FPM service
     local php_fpm_service="php${PHP_VERSION}-fpm"
     if ! systemctl is-active --quiet "${php_fpm_service}"; then
-        log_warning "${php_fpm_service} service is not running. Attempting to start..."
+        log_warning "⚠️  ${php_fpm_service} service is not running. Attempting to start..."
         if ! systemctl start "${php_fpm_service}"; then
-            log_error "Failed to start ${php_fpm_service} service"
+            log_error "❌ Failed to start ${php_fpm_service} service"
             systemctl status "${php_fpm_service}" --no-pager || true
             success=false
         else
-            log_info "Successfully started ${php_fpm_service} service"
+            log_info "✅ Successfully started ${php_fpm_service} service"
         fi
     else
-        log_info "PHP-FPM service is running"
+        log_info "✅ PHP-FPM service is running"
     fi
     
-    # Check installed extensions
-    log_info "Checking installed PHP extensions..."
-    local missing_extensions=()
+    # Check configuration files
+    log_info "\n🔍 Checking configuration files..."
+    for config_file in "${php_ini_path}" "${nextcloud_ini}"; do
+        if [ ! -f "${config_file}" ]; then
+            log_error "❌ Configuration file not found: ${config_file}"
+            success=false
+        else
+            log_info "✅ Found config file: ${config_file}"
+        fi
+    done
     
-    # First, get the list of all loaded extensions
+    # Check PHP settings
+    log_info "\n🔧 Checking PHP settings..."
+    declare -A required_settings=(
+        ["memory_limit"]="2G"
+        ["upload_max_filesize"]="10G"
+        ["post_max_size"]="10G"
+        ["max_execution_time"]="3600"
+        ["max_input_time"]="3600"
+        ["date.timezone"]="UTC"
+        ["opcache.enable"]="1"
+        ["opcache.enable_cli"]="1"
+        ["opcache.memory_consumption"]="256"
+        ["opcache.interned_strings_buffer"]="16"
+        ["opcache.max_accelerated_files"]="10000"
+        ["opcache.validate_timestamps"]="1"
+        [opcache.save_comments]="1"
+    )
+    
+    for setting in "${!required_settings[@]}"; do
+        local expected_value="${required_settings[$setting]}"
+        local actual_value
+        
+        # First try to get the value from PHP
+        actual_value=$(php${PHP_VERSION} -r "echo ini_get('${setting}');" 2>/dev/null || echo "(error)")
+        
+        if [ "${actual_value}" = "(error)" ]; then
+            log_warning "⚠️  Could not read setting: ${setting}"
+            continue
+        fi
+        
+        # Special handling for memory values (convert to bytes for comparison)
+        if [[ "${setting}" =~ _size$|^memory_limit$ ]] && [ "${expected_value}" != "0" ] && [ "${expected_value}" != "-1" ]; then
+            local expected_bytes
+            local actual_bytes
+            
+            expected_bytes=$(php${PHP_VERSION} -r "echo \\ini_get_bytes('${expected_value}');" 2>/dev/null)
+            actual_bytes=$(php${PHP_VERSION} -r "echo \\ini_get_bytes('${actual_value}');" 2>/dev/null)
+            
+            if [ -z "${expected_bytes}" ] || [ -z "${actual_bytes}" ]; then
+                log_warning "⚠️  Could not compare values for ${setting}: expected=${expected_value}, actual=${actual_value}"
+                continue
+            fi
+            
+            if [ "${actual_bytes}" -lt "${expected_bytes}" ]; then
+                log_error "❌ ${setting} is too low: ${actual_value} (should be at least ${expected_value})"
+                success=false
+            else
+                log_info "✅ ${setting} = ${actual_value} (>= ${expected_value})"
+            fi
+        else
+            # Simple string comparison for non-size settings
+            if [ "${actual_value}" != "${expected_value}" ]; then
+                log_error "❌ ${setting} is incorrect: ${actual_value} (should be ${expected_value})"
+                success=false
+            else
+                log_info "✅ ${setting} = ${actual_value}"
+            fi
+        fi
+    done
+    
+    # Check required PHP extensions
+    log_info "\n🔌 Checking PHP extensions..."
+    local missing_extensions=()
     local loaded_extensions
     loaded_extensions=$(php${PHP_VERSION} -m 2>/dev/null)
     
     if [ $? -ne 0 ]; then
-        log_error "Failed to get list of loaded PHP extensions"
+        log_error "❌ Failed to get list of loaded PHP extensions"
         success=false
     else
-        # Check each required extension
         for ext in "${PHP_EXTENSIONS[@]}"; do
             # Special handling for extensions that might have different names
-            local ext_name="${ext}"
             case "${ext}" in
                 "pdo_mysql")
-                    # Check both pdo_mysql and pdo_mysqlnd
                     if ! echo "${loaded_extensions}" | grep -q -E '^(pdo_mysql|pdo_mysqlnd)$'; then
                         missing_extensions+=("${ext}")
                     fi
@@ -446,31 +500,31 @@ verify_installation() {
         done
         
         if [ ${#missing_extensions[@]} -gt 0 ]; then
-            log_warning "Missing PHP extensions: ${missing_extensions[*]}"
+            log_error "❌ Missing PHP extensions: ${missing_extensions[*]}"
+            success=false
             
             # Try to install missing extensions
-            log_info "Attempting to install missing extensions..."
+            log_info "\n🔄 Attempting to install missing extensions..."
             local pkgs_to_install=()
             
             for ext in "${missing_extensions[@]}"; do
                 case "${ext}" in
-                    "pdo_mysql")
-                        pkgs_to_install+=("php${PHP_VERSION}-mysql")
-                        ;;
-                    *)
-                        pkgs_to_install+=("php${PHP_VERSION}-${ext}")
-                        ;;
+                    "pdo_mysql") pkgs_to_install+=("php${PHP_VERSION}-mysql") ;;
+                    "mysqli") pkgs_to_install+=("php${PHP_VERSION}-mysql") ;;
+                    *) pkgs_to_install+=("php${PHP_VERSION}-${ext}") ;;
                 esac
             done
             
+            # Remove duplicates
+            readarray -t pkgs_to_install < <(printf "%s\n" "${pkgs_to_install[@]}" | sort -u)
+            
             if [ ${#pkgs_to_install[@]} -gt 0 ]; then
-                log_info "Installing packages: ${pkgs_to_install[*]}"
+                log_info "📦 Installing packages: ${pkgs_to_install[*]}"
                 if DEBIAN_FRONTEND=noninteractive apt-get install -y "${pkgs_to_install[@]}"; then
-                    log_info "Successfully installed missing extensions"
-                    # Restart PHP-FPM to load new extensions
+                    log_info "✅ Successfully installed packages"
                     systemctl restart "${php_fpm_service}" || true
                     
-                    # Re-check for still missing extensions
+                    # Re-check extensions after installation
                     local still_missing=()
                     for ext in "${missing_extensions[@]}"; do
                         if ! php${PHP_VERSION} -m | grep -q -E "^${ext}$"; then
@@ -479,60 +533,41 @@ verify_installation() {
                     done
                     
                     if [ ${#still_missing[@]} -gt 0 ]; then
-                        log_warning "Still missing extensions after installation: ${still_missing[*]}"
+                        log_error "❌ Still missing extensions: ${still_missing[*]}"
                         success=false
                     else
-                        log_info "All extensions successfully installed and loaded"
+                        log_info "✅ All extensions successfully loaded"
                     fi
                 else
-                    log_error "Failed to install missing extensions"
+                    log_error "❌ Failed to install packages"
                     success=false
                 fi
             fi
         else
-            log_info "All required PHP extensions are installed and loaded"
+            log_info "✅ All required PHP extensions are installed"
         fi
     fi
     
     # Check PHP-FPM configuration
-    log_info "Checking PHP-FPM configuration..."
+    log_info "\n🔧 Checking PHP-FPM configuration..."
     if ! php-fpm${PHP_VERSION} -t; then
-        log_error "PHP-FPM configuration test failed"
+        log_error "❌ PHP-FPM configuration test failed"
         success=false
     else
-        log_info "PHP-FPM configuration test passed"
+        log_info "✅ PHP-FPM configuration test passed"
     fi
     
-    # Check important PHP settings
-    log_info "Checking PHP settings..."
-    local settings=(
-        "memory_limit"
-        "upload_max_filesize"
-        "post_max_size"
-        "max_execution_time"
-        "max_input_time"
-        "date.timezone"
-        "opcache.enable"
-        "opcache.enable_cli"
-        "opcache.memory_consumption"
-        "opcache.interned_strings_buffer"
-        "opcache.max_accelerated_files"
-        "opcache.validate_timestamps"
-        "opcache.save_comments"
-        "opcache.revalidate_freq"
-    )
-    
-    for setting in "${settings[@]}"; do
-        local value
-        value=$(php${PHP_VERSION} -r "echo ini_get('${setting}');" 2>/dev/null || echo "(error)")
-        log_info "${setting} = ${value}"
-    done
-    
-    if [ "$success" = true ]; then
-        log_success "PHP installation verified successfully"
+    # Final status
+    if [ "${success}" = true ]; then
+        log_success "\n🎉 PHP installation verified successfully!"
         return 0
     else
-        log_error "PHP installation verification failed"
+        log_error "\n❌ PHP installation verification failed"
+        log_info "\n💡 Check the following:"
+        log_info "1. PHP-FPM service status: systemctl status ${php_fpm_service}"
+        log_info "2. PHP-FPM error log: journalctl -u ${php_fpm_service} -n 50"
+        log_info "3. PHP configuration files in /etc/php/${PHP_VERSION}/fpm/"
+        log_info "4. Install missing extensions manually if needed"
         return 1
     fi
 }
