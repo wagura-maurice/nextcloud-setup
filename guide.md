@@ -15,6 +15,8 @@ rm -rf nextcloud-setup
 git clone https://github.com/wagura-maurice/nextcloud-setup.git
 cd nextcloud-setup
 
+cd .env src/
+
 # Make scripts executable
 sudo chmod +x prepare-system.sh
 sudo chmod +x src/utilities/install/install-*.sh
@@ -22,6 +24,7 @@ sudo chmod +x src/utilities/configure/configure-*.sh
 
 # Run system preparation
 sudo ./prepare-system.sh
+
 ```
 
 ## Installation
