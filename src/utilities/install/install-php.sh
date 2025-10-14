@@ -879,6 +879,15 @@ install_php_stack() {
         fi
     fi
     
+    # Set max_input_time to at least 1000 in all relevant php.ini files
+    for ini in /etc/php/*/apache2/php.ini /etc/php/*/fpm/php.ini; do
+        if [ -f "$ini" ]; then
+            sudo sed -i 's/^max_input_time\s*=.*/max_input_time = 1000/' "$ini"
+            # If not present, add it
+            grep -q '^max_input_time' "$ini" || echo "max_input_time = 1000" | sudo tee -a "$ini" > /dev/null
+        fi
+    done
+    
     # Final status
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
