@@ -186,7 +186,7 @@ install_php() {
 apply_php_settings() {
     local php_ini_path="/etc/php/${PHP_VERSION}/fpm/php.ini"
     local php_fpm_conf="/etc/php/${PHP_VERSION}/fpm/php-fpm.conf"
-    local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/90-nextcloud.ini"
+    local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/99-nextcloud.ini"
     
     log_info "🔧 Applying recommended PHP settings..."
     
@@ -195,23 +195,18 @@ apply_php_settings() {
         cp "${php_ini_path}" "${php_ini_path}.original"
     fi
     
-    # Create or update the Nextcloud-specific ini file
-    log_info "📝 Updating Nextcloud PHP configuration..."
+    # Remove any existing conflicting nextcloud config files
+    for f in "/etc/php/${PHP_VERSION}/fpm/conf.d/"*nextcloud*.ini; do
+        if [ "$f" != "$nextcloud_ini" ] && [ -f "$f" ]; then
+            log_info "Removing conflicting PHP config: $f"
+            rm -f "$f"
+        fi
+    done
     
-    # Remove existing file if it exists to avoid permission issues
-    if [ -f "${nextcloud_ini}" ]; then
-        log_info "ℹ️ Removing existing ${nextcloud_ini}..."
-        rm -f "${nextcloud_ini}" || {
-            log_warning "⚠️  Could not remove ${nextcloud_ini}, trying with sudo..."
-            sudo rm -f "${nextcloud_ini}" || {
-                log_error "❌ Failed to remove existing ${nextcloud_ini}"
-                return 1
-            }
-        }
-    fi
+    # Create new configuration file with proper formatting
+    log_info "📝 Creating Nextcloud PHP configuration..."
     
-    # Create new configuration file
-    cat > "${nextcloud_ini}.tmp" << EOF
+    cat > "${nextcloud_ini}" << 'EOF'
 ; Nextcloud recommended PHP settings
 ; This file is auto-generated - do not edit manually
 
@@ -262,148 +257,54 @@ realpath_cache_ttl = 3600
 
 ; Increase max input variables
 max_input_vars = 2000
-
-; Ensure these settings are not overridden in .user.ini files
-user_ini.filename =
-
-; Ensure this setting is not overridden in .htaccess
-htaccess_force_redirect = 1
 EOF
 
-    # Set correct permissions if file exists
-    if [ -f "${nextcloud_ini}" ]; then
-        chmod 644 "${nextcloud_ini}"
-    fi
+    # Set correct permissions
+    chmod 644 "${nextcloud_ini}"
+    log_info "✅ Created ${nextcloud_ini}"
     
-    # Also update the main php.ini with critical settings
-    log_info "🔧 Updating main PHP configuration..."
-    
-    # First, create a backup of the original php.ini if we haven't already
-    if [ ! -f "${php_ini_path}.original" ]; then
-        cp "${php_ini_path}" "${php_ini_path}.original"
-    fi
-    
-    # Create a temporary file for the new php.ini
-    local temp_ini="${php_ini_path}.new"
-    cp "${php_ini_path}.original" "${temp_ini}"
-    
-    # Define the settings we want to ensure are set in the main php.ini
-    declare -A main_settings=(
-        ["memory_limit"]="2G"
-        ["upload_max_filesize"]="10G"
-        ["post_max_size"]="10G"
-        ["max_execution_time"]="3600"
-        ["max_input_time"]="3600"
-        ["opcache.enable"]="1"
-        ["opcache.enable_cli"]="1"
-        ["opcache.memory_consumption"]="256"
-        ["opcache.interned_strings_buffer"]="16"
-        ["opcache.max_accelerated_files"]="10000"
-        ["opcache.validate_timestamps"]="1"
-        ["opcache.save_comments"]="1"
-    )
-    
-    # Process each setting
-    for setting in "${!main_settings[@]}"; do
-        local value="${main_settings[$setting]}"
-        
-        # First, remove any existing setting (commented or not)
-        sed -i -E "/^;?\s*${setting}\s*=/d" "${temp_ini}"
-        
-        # Add our setting in the appropriate section (usually at the end)
-        if grep -q '^\s*\[' "${temp_ini}"; then
-            # If there are sections, add at the end of the file
-            echo -e "\n; Nextcloud recommended setting\n${setting} = ${value}" >> "${temp_ini}"
-        else
-            # If no sections, just add at the end
-            echo "${setting} = ${value}" >> "${temp_ini}"
-        fi
-        
-        # Ensure the setting is also in our Nextcloud INI file
-        if [ -f "${nextcloud_ini}" ] && ! grep -q "^\s*${setting}\s*=" "${nextcloud_ini}"; then
-            echo "${setting} = ${value}" >> "${nextcloud_ini}"
-        fi
-        
-        log_info "✅ Set ${setting} = ${value} in configuration"
-    done
-    
-    # Replace the original with our updated version
-    mv "${temp_ini}" "${php_ini_path}"
-    chmod 644 "${php_ini_path}"
-    
-    # Move the temporary file to the final location with a high number to ensure it loads last
-    local final_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/99-nextcloud.ini"
-    
-    # Remove any existing nextcloud ini files that might cause conflicts
-    for f in "/etc/php/${PHP_VERSION}/fpm/conf.d/"*nextcloud*.ini; do
-        if [ "$f" != "$final_ini" ] && [ -f "$f" ]; then
-            log_info "Removing conflicting PHP config: $f"
-            rm -f "$f" || sudo rm -f "$f"
-        fi
-    done
-    
-    if mv "${nextcloud_ini}.tmp" "$final_ini"; then
-        chmod 644 "$final_ini"
-        log_info "✅ Created $final_ini"
-    else
-        log_error "❌ Failed to create $final_ini"
-        return 1
-    fi
-    
-    # Ensure that the settings are also applied to the CLI version of PHP
+    # Ensure CLI version has the same settings
     local cli_ini_path="/etc/php/${PHP_VERSION}/cli/php.ini"
     if [ -f "${cli_ini_path}" ]; then
         log_info "🔧 Updating CLI PHP configuration..."
-        # Create backup if not exists
+        
         if [ ! -f "${cli_ini_path}.original" ]; then
             cp "${cli_ini_path}" "${cli_ini_path}.original"
         fi
         
-        # Apply same settings to CLI version
-        for setting in "${!main_settings[@]}"; do
-            local value="${main_settings[$setting]}"
-            # Remove any existing setting
-            sed -i -E "/^;?\s*${setting}\s*=/d" "${cli_ini_path}"
-            # Add our setting
-            echo "${setting} = ${value}" >> "${cli_ini_path}"
-        done
+        # Create CLI-specific config
+        local cli_conf_dir="/etc/php/${PHP_VERSION}/cli/conf.d"
+        mkdir -p "${cli_conf_dir}"
         
-        # Also ensure opcache settings are applied to CLI version
-        declare -A opcache_settings=(
-            ["opcache.enable"]="1"
-            ["opcache.enable_cli"]="1"
-            ["opcache.memory_consumption"]="256"
-            ["opcache.interned_strings_buffer"]="16"
-            ["opcache.max_accelerated_files"]="10000"
-            ["opcache.validate_timestamps"]="1"
-            ["opcache.save_comments"]="1"
-        )
+        cat > "${cli_conf_dir}/99-nextcloud.ini" << 'EOF'
+; Nextcloud recommended PHP settings for CLI
+memory_limit = 2G
+upload_max_filesize = 10G
+post_max_size = 10G
+max_execution_time = 3600
+max_input_time = 3600
+date.timezone = UTC
+opcache.enable_cli = 1
+opcache.memory_consumption = 256
+opcache.interned_strings_buffer = 16
+opcache.max_accelerated_files = 10000
+opcache.validate_timestamps = 1
+opcache.save_comments = 1
+max_input_vars = 2000
+EOF
         
-        for setting in "${!opcache_settings[@]}"; do
-            local value="${opcache_settings[$setting]}"
-            # Remove any existing setting
-            sed -i -E "/^;?\s*${setting}\s*=/d" "${cli_ini_path}"
-            # Add our setting
-            echo "${setting} = ${value}" >> "${cli_ini_path}"
-        done
-        
-        chmod 644 "${cli_ini_path}"
+        chmod 644 "${cli_conf_dir}/99-nextcloud.ini"
     fi
     
-    # Ensure the PHP-FPM configuration is properly set
+    # Ensure PHP-FPM configuration is properly set
     if [ -f "${php_fpm_conf}" ]; then
         log_info "🔧 Configuring PHP-FPM..."
         
-        # Create a backup if it doesn't exist
         if [ ! -f "${php_fpm_conf}.original" ]; then
             cp "${php_fpm_conf}" "${php_fpm_conf}.original"
         fi
         
-        # Create a temporary file for the new configuration
-        local temp_conf="${php_fpm_conf}.tmp"
-        cp "${php_fpm_conf}" "${temp_conf}"
-        
-        # Set FPM settings
+        # Set FPM settings with proper sed patterns
         declare -A fpm_settings=(
             ["emergency_restart_threshold"]="10"
             ["emergency_restart_interval"]="1m"
@@ -415,36 +316,37 @@ EOF
         
         for setting in "${!fpm_settings[@]}"; do
             local value="${fpm_settings[$setting]}"
-            if grep -q -E "^;?\s*${setting}\s*=" "${temp_conf}"; then
-                sed -i -E "s/^;?\s*${setting}\s*=.*$/${setting} = ${value}/" "${temp_conf}"
+            
+            # Use a more robust sed pattern
+            if grep -q "^;*\s*${setting}\s*=" "${php_fpm_conf}"; then
+                sed -i "s/^;*\s*${setting}\s*=.*$/${setting} = ${value}/" "${php_fpm_conf}"
             else
-                echo "${setting} = ${value}" >> "${temp_conf}"
+                echo "${setting} = ${value}" >> "${php_fpm_conf}"
             fi
-            log_info "✅ Set ${setting} = ${value} in ${php_fpm_conf##*/}"
+            log_info "✅ Set ${setting} = ${value}"
         done
         
         # Validate the configuration before applying
-        if php-fpm${PHP_VERSION} -t -c "${temp_conf}"; then
-            mv "${temp_conf}" "${php_fpm_conf}"
-            chmod 644 "${php_fpm_conf}"
-            log_success "✅ PHP-FPM configuration validated and saved"
+        if php-fpm${PHP_VERSION} -t > /dev/null 2>&1; then
+            log_success "✅ PHP-FPM configuration validated"
             
             # Restart PHP-FPM to apply changes
             log_info "🔄 Restarting PHP-FPM service..."
             if systemctl restart "php${PHP_VERSION}-fpm"; then
                 log_success "✅ PHP-FPM restarted successfully"
+                sleep 2  # Give FPM time to fully restart
             else
-                log_error "❌ Failed to restart PHP-FPM. Showing logs..."
+                log_error "❌ Failed to restart PHP-FPM"
                 journalctl -u "php${PHP_VERSION}-fpm" -n 20 --no-pager
                 return 1
             fi
         else
-            log_error "❌ Invalid PHP-FPM configuration. Not applying changes."
-            log_info "Check the configuration in: ${temp_conf}"
+            log_error "❌ Invalid PHP-FPM configuration"
+            php-fpm${PHP_VERSION} -t
             return 1
         fi
     else
-        log_warning "⚠️  PHP-FPM configuration file not found at ${php_fpm_conf}"
+        log_warning "⚠️ PHP-FPM configuration file not found at ${php_fpm_conf}"
     fi
     
     log_success "✅ PHP settings applied successfully"
