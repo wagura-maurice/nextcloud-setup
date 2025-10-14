@@ -323,6 +323,8 @@ EOF
         if [ -f "${nextcloud_ini}" ] && ! grep -q "^\s*${setting}\s*=" "${nextcloud_ini}"; then
             echo "${setting} = ${value}" >> "${nextcloud_ini}"
         fi
+        
+        log_info "✅ Set ${setting} = ${value} in configuration"
     done
     
     # Ensure opcache settings are properly added to the Nextcloud INI file as well
@@ -333,9 +335,7 @@ EOF
         # Add our setting
         echo "${setting} = ${value}" >> "${nextcloud_ini}.tmp"
     done
-        
-        log_info "✅ Set ${setting} = ${value} in configuration"
-    done
+    
     
     # Replace the original with our updated version
     mv "${temp_ini}" "${php_ini_path}"
