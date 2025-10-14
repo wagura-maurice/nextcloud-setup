@@ -11,12 +11,13 @@ CONFIG_DIR="${PROJECT_ROOT}/../config"
 DATA_DIR="${PROJECT_ROOT}/../data"
 ENV_FILE="${PROJECT_ROOT}/../.env"
 
-# Ensure required directories exist
-for dir in "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"; do
+# Ensure required directories exist before any logging or sourcing
+for dir in "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}" "${PROJECT_ROOT}/../tmp"; do
     mkdir -p "${dir}" || {
         echo "Failed to create directory: ${dir}" >&2
         exit 1
     }
+    chmod 750 "${dir}"
 done
 
 export LOG_FILE="${LOG_DIR}/setup-$(date +%Y%m%d).log"
