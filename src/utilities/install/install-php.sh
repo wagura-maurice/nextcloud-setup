@@ -294,6 +294,13 @@ EOF
         ["post_max_size"]="10G"
         ["max_execution_time"]="3600"
         ["max_input_time"]="3600"
+        ["opcache.enable"]="1"
+        ["opcache.enable_cli"]="1"
+        ["opcache.memory_consumption"]="256"
+        ["opcache.interned_strings_buffer"]="16"
+        ["opcache.max_accelerated_files"]="1000"
+        ["opcache.validate_timestamps"]="1"
+        ["opcache.save_comments"]="1"
     )
     
     # Process each setting
@@ -316,6 +323,16 @@ EOF
         if [ -f "${nextcloud_ini}" ] && ! grep -q "^\s*${setting}\s*=" "${nextcloud_ini}"; then
             echo "${setting} = ${value}" >> "${nextcloud_ini}"
         fi
+    done
+    
+    # Ensure opcache settings are properly added to the Nextcloud INI file as well
+    for setting in "${!main_settings[@]}"; do
+        local value="${main_settings[$setting]}"
+        # Remove any existing setting
+        sed -i -E "/^;?\s*${setting}\s*=/d" "${nextcloud_ini}.tmp"
+        # Add our setting
+        echo "${setting} = ${value}" >> "${nextcloud_ini}.tmp"
+    done
         
         log_info "✅ Set ${setting} = ${value} in configuration"
     done
@@ -360,6 +377,26 @@ EOF
             # Add our setting
             echo "${setting} = ${value}" >> "${cli_ini_path}"
         done
+        
+        # Also ensure opcache settings are applied to CLI version
+        declare -A opcache_settings=(
+            ["opcache.enable"]="1"
+            ["opcache.enable_cli"]="1"
+            ["opcache.memory_consumption"]="256"
+            ["opcache.interned_strings_buffer"]="16"
+            ["opcache.max_accelerated_files"]="1000"
+            ["opcache.validate_timestamps"]="1"
+            ["opcache.save_comments"]="1"
+        )
+        
+        for setting in "${!opcache_settings[@]}"; do
+            local value="${opcache_settings[$setting]}"
+            # Remove any existing setting
+            sed -i -E "/^;?\s*${setting}\s*=/d" "${cli_ini_path}"
+            # Add our setting
+            echo "${setting} = ${value}" >> "${cli_ini_path}"
+        done
+        
         chmod 644 "${cli_ini_path}"
     fi
     
@@ -870,6 +907,16 @@ install_php_stack() {
         log_section "3.1. Applying Recommended PHP Settings"
         if ! apply_php_settings; then
             log_error "Failed to apply recommended PHP settings"
+            success=false
+        fi
+        
+        # Restart PHP-FPM one final time to ensure all settings are applied
+        log_info "🔄 Performing final restart of PHP-FPM to apply all configurations..."
+        if systemctl restart "php${PHP_VERSION}-fpm"; then
+            log_success "✅ PHP-FPM restarted successfully after applying all settings"
+        else
+            log_error "❌ Failed to restart PHP-FPM after applying settings. Showing logs..."
+            journalctl -u "php${PHP_VERSION}-fpm" -n 20 --no-pager
             success=false
         fi
     fi
