@@ -577,7 +577,7 @@ verify_installation() {
     log_info "Verifying PHP installation..."
     local success=true
     local php_ini_path="/etc/php/${PHP_VERSION}/fpm/php.ini"
-    local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/90-nextcloud.ini"
+    local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/99-nextcloud.ini"
     
     # Check PHP command exists
     if ! command -v "php${PHP_VERSION}" >/dev/null 2>&1; then
