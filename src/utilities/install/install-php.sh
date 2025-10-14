@@ -206,15 +206,71 @@ apply_php_settings() {
         fi
     done
 
-; Disable dangerous functions
-disable_functions = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
+    # Create a new configuration file with all settings
+    cat > "${nextcloud_ini}" << 'EOF'
+; Nextcloud recommended PHP settings
+; This file is auto-generated - do not edit manually
 
-; Increase realpath cache size
+[PHP]
+; Resource limits
+memory_limit = 2G
+upload_max_filesize = 10G
+post_max_size = 10G
+max_execution_time = 3600
+max_input_time = 3600
+
+; Timezone
+date.timezone = UTC
+
+; Security settings
+disable_functions = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
+expose_php = Off
+
+; Performance settings
 realpath_cache_size = 512k
 realpath_cache_ttl = 3600
-
-; Increase max input variables
 max_input_vars = 2000
+
+; OPcache settings
+[opcache]
+opcache.enable = 1
+opcache.enable_cli = 1
+opcache.memory_consumption = 256
+opcache.interned_strings_buffer = 16
+opcache.max_accelerated_files = 10000
+opcache.validate_timestamps = 1
+opcache.save_comments = 1
+opcache.revalidate_freq = 1
+opcache.fast_shutdown = 1
+
+; Session settings
+[session]
+session.auto_start = 0
+session.gc_maxlifetime = 3600
+session.cookie_lifetime = 0
+session.cookie_httponly = 1
+session.cookie_secure = 1
+session.use_strict_mode = 1
+session.cookie_samesite = Lax
+
+; Other settings
+default_socket_timeout = 60
+
+[Pcre]
+pcre.jit = 1
+pcre.backtrack_limit = 1000000
+pcre.recursion_limit = 100000
+
+; Database settings
+[MySQL]
+mysql.connect_timeout = 60
+mysqli.reconnect = Off
+
+; File handling
+file_uploads = On
+output_buffering = Off
+
+default_charset = "UTF-8"
 EOF
 
     # Set correct permissions
