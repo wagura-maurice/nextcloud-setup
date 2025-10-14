@@ -880,15 +880,26 @@ install_php_stack() {
     fi
     
     # Set max_input_time to at least 1000 in all relevant php.ini files (FPM, CLI, Apache2)
+    local changed=0
     for ini in /etc/php/*/fpm/php.ini /etc/php/*/cli/php.ini /etc/php/*/apache2/php.ini; do
         if [ -f "$ini" ]; then
-            # Replace any existing value (including -1) with 1000
-            sed -i 's/^max_input_time\s*=.*/max_input_time = 1000/' "$ini"
-            # If not present, add it
-            grep -q '^max_input_time' "$ini" || echo "max_input_time = 1000" >> "$ini"
+            # If set to -1 or missing, set to 1000
+            if grep -q '^max_input_time\s*=' "$ini"; then
+                if grep -q '^max_input_time\s*=\s*-1' "$ini"; then
+                    sed -i 's/^max_input_time\s*=.*/max_input_time = 1000/' "$ini"
+                    changed=1
+                fi
+            else
+                echo "max_input_time = 1000" >> "$ini"
+                changed=1
+            fi
         fi
     done
-    
+    # Reload PHP-FPM if any changes were made
+    if [ "$changed" -eq 1 ]; then
+        systemctl reload "php${PHP_VERSION}-fpm" 2>/dev/null || true
+    fi
+
     # Final status
     local end_time=$(date +%s)
     local duration=$((end_time - start_time))
