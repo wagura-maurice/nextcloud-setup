@@ -300,12 +300,24 @@ EOF
     for setting in "${!main_settings[@]}"; do
         local value="${main_settings[$setting]}"
         
-        # Remove any existing setting (commented or not)
+        # First, remove any existing setting (commented or not)
         sed -i -E "/^;?\s*${setting}\s*=/d" "${temp_ini}"
         
-        # Add our setting at the end of the file
-        echo "${setting} = ${value}" >> "${temp_ini}"
-        log_info "✅ Set ${setting} = ${value} in ${php_ini_path##*/}"
+        # Add our setting in the appropriate section (usually at the end)
+        if grep -q '^\s*\[' "${temp_ini}"; then
+            # If there are sections, add at the end of the file
+            echo -e "\n; Nextcloud recommended setting\n${setting} = ${value}" >> "${temp_ini}"
+        else
+            # If no sections, just add at the end
+            echo "${setting} = ${value}" >> "${temp_ini}"
+        fi
+        
+        # Ensure the setting is also in our Nextcloud INI file
+        if [ -f "${nextcloud_ini}" ] && ! grep -q "^\s*${setting}\s*=" "${nextcloud_ini}"; then
+            echo "${setting} = ${value}" >> "${nextcloud_ini}"
+        fi
+        
+        log_info "✅ Set ${setting} = ${value} in configuration"
     done
     
     # Replace the original with our updated version
