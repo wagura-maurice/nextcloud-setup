@@ -325,16 +325,6 @@ EOF
         fi
         
         log_info "✅ Set ${setting} = ${value} in configuration"
-    done
-    
-    # Ensure opcache settings are properly added to the Nextcloud INI file as well
-    for setting in "${!main_settings[@]}"; do
-        local value="${main_settings[$setting]}"
-        # Remove any existing setting
-        sed -i -E "/^;?\s*${setting}\s*=/d" "${nextcloud_ini}.tmp"
-        # Add our setting
-        echo "${setting} = ${value}" >> "${nextcloud_ini}.tmp"
-    done
     
     
     # Replace the original with our updated version
