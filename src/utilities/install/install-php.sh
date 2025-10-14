@@ -648,6 +648,23 @@ verify_installation() {
             else
                 log_info "✅ ${setting} = ${actual_value} (>= ${expected_value})"
             fi
+        # Special handling for numeric time values (like max_execution_time, max_input_time)
+        elif [[ "${setting}" == "max_execution_time" || "${setting}" == "max_input_time" ]]; then
+            # Remove any non-numeric characters and compare as integers
+            local actual_num=$(echo "${actual_value}" | tr -cd '0-9')
+            local expected_num=$(echo "${expected_value}" | tr -cd '0-9')
+            
+            if [ -z "${actual_num}" ] || [ -z "${expected_num}" ]; then
+                log_warning "⚠️  Could not compare numeric values for ${setting}: expected=${expected_value}, actual=${actual_value}"
+                continue
+            fi
+            
+            if [ "${actual_num}" -lt "${expected_num}" ]; then
+                log_error "❌ ${setting} is too low: ${actual_value} (should be at least ${expected_value})"
+                success=false
+            else
+                log_info "✅ ${setting} = ${actual_value} (>= ${expected_value})"
+            fi
         else
             # Simple string comparison for non-size settings
             if [ "${actual_value}" != "${expected_value}" ]; then
