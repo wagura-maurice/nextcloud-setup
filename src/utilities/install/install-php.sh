@@ -270,8 +270,10 @@ user_ini.filename =
 htaccess_force_redirect = 1
 EOF
 
-    # Set correct permissions
-    chmod 644 "${nextcloud_ini}"
+    # Set correct permissions if file exists
+    if [ -f "${nextcloud_ini}" ]; then
+        chmod 644 "${nextcloud_ini}"
+    fi
     
     # Also update the main php.ini with critical settings
     log_info "🔧 Updating main PHP configuration..."
