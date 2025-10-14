@@ -197,7 +197,21 @@ apply_php_settings() {
     
     # Create or update the Nextcloud-specific ini file
     log_info "📝 Updating Nextcloud PHP configuration..."
-    cat > "${nextcloud_ini}" << EOF
+    
+    # Remove existing file if it exists to avoid permission issues
+    if [ -f "${nextcloud_ini}" ]; then
+        log_info "ℹ️ Removing existing ${nextcloud_ini}..."
+        rm -f "${nextcloud_ini}" || {
+            log_warning "⚠️  Could not remove ${nextcloud_ini}, trying with sudo..."
+            sudo rm -f "${nextcloud_ini}" || {
+                log_error "❌ Failed to remove existing ${nextcloud_ini}"
+                return 1
+            }
+        }
+    fi
+    
+    # Create new configuration file
+    cat > "${nextcloud_ini}.tmp" << EOF
 ; Nextcloud recommended PHP settings
 ; This file is auto-generated - do not edit manually
 
@@ -281,6 +295,15 @@ EOF
         log_info "✅ Set ${key} = ${value} in ${php_ini_path##*/}"
     done
     
+        # Move the temporary file to the final location
+    if mv "${nextcloud_ini}.tmp" "${nextcloud_ini}"; then
+        chmod 644 "${nextcloud_ini}"
+        log_info "✅ Created ${nextcloud_ini}"
+    else
+        log_error "❌ Failed to create ${nextcloud_ini}"
+        return 1
+    fi
+    
     # Ensure the PHP-FPM configuration is properly set
     if [ -f "${php_fpm_conf}" ]; then
         log_info "🔧 Configuring PHP-FPM..."
@@ -290,30 +313,52 @@ EOF
             cp "${php_fpm_conf}" "${php_fpm_conf}.original"
         fi
         
+        # Create a temporary file for the new configuration
+        local temp_conf="${php_fpm_conf}.tmp"
+        cp "${php_fpm_conf}" "${temp_conf}"
+        
         # Set FPM settings
         declare -A fpm_settings=(
             ["emergency_restart_threshold"]="10"
             ["emergency_restart_interval"]="1m"
             ["process_control_timeout"]="10s"
+            ["log_level"]="notice"
+            ["log_limit"]="4096"
+            ["decorate_workers_output"]="no"
         )
         
         for setting in "${!fpm_settings[@]}"; do
             local value="${fpm_settings[$setting]}"
-            if grep -q -E "^;?\s*${setting}\s*=" "${php_fpm_conf}"; then
-                sed -i -E "s/^;?\s*${setting}\s*=.*$/${setting} = ${value}/" "${php_fpm_conf}"
+            if grep -q -E "^;?\s*${setting}\s*=" "${temp_conf}"; then
+                sed -i -E "s/^;?\s*${setting}\s*=.*$/${setting} = ${value}/" "${temp_conf}"
             else
-                echo "${setting} = ${value}" >> "${php_fpm_conf}"
+                echo "${setting} = ${value}" >> "${temp_conf}"
             fi
             log_info "✅ Set ${setting} = ${value} in ${php_fpm_conf##*/}"
         done
-    fi
-    
-    # Restart PHP-FPM to apply changes
-    log_info "🔄 Restarting PHP-FPM service..."
-    if systemctl restart "php${PHP_VERSION}-fpm"; then
-        log_success "✅ PHP-FPM restarted successfully"
+        
+        # Validate the configuration before applying
+        if php-fpm${PHP_VERSION} -t -c "${temp_conf}"; then
+            mv "${temp_conf}" "${php_fpm_conf}"
+            chmod 644 "${php_fpm_conf}"
+            log_success "✅ PHP-FPM configuration validated and saved"
+            
+            # Restart PHP-FPM to apply changes
+            log_info "🔄 Restarting PHP-FPM service..."
+            if systemctl restart "php${PHP_VERSION}-fpm"; then
+                log_success "✅ PHP-FPM restarted successfully"
+            else
+                log_error "❌ Failed to restart PHP-FPM. Showing logs..."
+                journalctl -u "php${PHP_VERSION}-fpm" -n 20 --no-pager
+                return 1
+            fi
+        else
+            log_error "❌ Invalid PHP-FPM configuration. Not applying changes."
+            log_info "Check the configuration in: ${temp_conf}"
+            return 1
+        fi
     else
-        log_warning "⚠️  Failed to restart PHP-FPM. Changes may not take effect until next restart."
+        log_warning "⚠️  PHP-FPM configuration file not found at ${php_fpm_conf}"
     fi
     
     log_success "✅ PHP settings applied successfully"
