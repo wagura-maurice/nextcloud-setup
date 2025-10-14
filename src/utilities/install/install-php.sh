@@ -6,10 +6,20 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"  # Points to utili
 PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"  # Points to src directory
 CORE_DIR="${PROJECT_ROOT}/core"
 UTILS_DIR="${SCRIPT_DIR}"  # Current directory is utilities
-LOG_DIR="${PROJECT_ROOT}/../logs"
+LOG_DIR="/root/nextcloud-setup/src/logs"  # Explicit log directory
 CONFIG_DIR="${PROJECT_ROOT}/../config"
 DATA_DIR="${PROJECT_ROOT}/../data"
 ENV_FILE="${PROJECT_ROOT}/../.env"
+
+# Ensure required directories exist
+for dir in "${LOG_DIR}" "${CONFIG_DIR}" "${DATA_DIR}"; do
+    mkdir -p "${dir}" || {
+        echo "Failed to create directory: ${dir}" >&2
+        exit 1
+    }
+done
+
+export LOG_FILE="${LOG_DIR}/setup-$(date +%Y%m%d).log"
 
 # Export environment variables
 export PROJECT_ROOT CORE_DIR UTILS_DIR LOG_DIR CONFIG_DIR DATA_DIR ENV_FILE
