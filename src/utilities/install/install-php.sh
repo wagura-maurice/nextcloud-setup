@@ -1040,3 +1040,10 @@ fix_max_input_time() {
         log_success "✅ PHP-FPM reloaded successfully"
     fi
 }
+
+# Main execution
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    install_php_stack
+    exit $?
+fi
+}
