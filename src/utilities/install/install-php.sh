@@ -325,7 +325,7 @@ EOF
         fi
         
         log_info "✅ Set ${setting} = ${value} in configuration"
-    
+    done
     
     # Replace the original with our updated version
     mv "${temp_ini}" "${php_ini_path}"
