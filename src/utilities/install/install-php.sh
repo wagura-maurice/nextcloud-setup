@@ -298,7 +298,7 @@ EOF
         ["opcache.enable_cli"]="1"
         ["opcache.memory_consumption"]="256"
         ["opcache.interned_strings_buffer"]="16"
-        ["opcache.max_accelerated_files"]="1000"
+        ["opcache.max_accelerated_files"]="10000"
         ["opcache.validate_timestamps"]="1"
         ["opcache.save_comments"]="1"
     )
@@ -384,7 +384,7 @@ EOF
             ["opcache.enable_cli"]="1"
             ["opcache.memory_consumption"]="256"
             ["opcache.interned_strings_buffer"]="16"
-            ["opcache.max_accelerated_files"]="1000"
+            ["opcache.max_accelerated_files"]="10000"
             ["opcache.validate_timestamps"]="1"
             ["opcache.save_comments"]="1"
         )
