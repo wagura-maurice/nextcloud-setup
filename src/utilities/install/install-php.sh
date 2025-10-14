@@ -934,36 +934,71 @@ fix_max_input_time() {
     
     local php_ini_path="/etc/php/${PHP_VERSION}/fpm/php.ini"
     local cli_ini_path="/etc/php/${PHP_VERSION}/cli/php.ini"
+    local fpm_conf="/etc/php/${PHP_VERSION}/fpm/php-fpm.conf"
+    local pool_conf="/etc/php/${PHP_VERSION}/fpm/pool.d/www.conf"
     
     # Fix FPM configuration
     if [ -f "${php_ini_path}" ]; then
-        if grep -q '^max_input_time\s*=' "${php_ini_path}"; then
-            sed -i 's/^max_input_time\s*=.*/max_input_time = 1000/' "${php_ini_path}"
+        if grep -q '^;*\s*max_input_time\s*=' "${php_ini_path}"; then
+            sed -i 's/^;*\s*max_input_time\s*=.*/max_input_time = 1000/' "${php_ini_path}"
         else
-            echo "max_input_time = 1000" >> "${php_ini_path}"
+            echo -e "\n; Set max_input_time for long-running requests\nmax_input_time = 1000" >> "${php_ini_path}"
         fi
         log_info "✅ Set max_input_time = 1000 in ${php_ini_path}"
     fi
     
     # Fix CLI configuration
     if [ -f "${cli_ini_path}" ]; then
-        if grep -q '^max_input_time\s*=' "${cli_ini_path}"; then
-            sed -i 's/^max_input_time\s*=.*/max_input_time = 1000/' "${cli_ini_path}"
+        if grep -q '^;*\s*max_input_time\s*=' "${cli_ini_path}"; then
+            sed -i 's/^;*\s*max_input_time\s*=.*/max_input_time = 1000/' "${cli_ini_path}"
         else
-            echo "max_input_time = 1000" >> "${cli_ini_path}"
+            echo -e "\n; Set max_input_time for long-running requests\nmax_input_time = 1000" >> "${cli_ini_path}"
         fi
         log_info "✅ Set max_input_time = 1000 in ${cli_ini_path}"
+    fi
+    
+    # Ensure it's set in the PHP-FPM main config
+    if [ -f "${fpm_conf}" ]; then
+        if grep -q '^;*\s*max_input_time\s*=' "${fpm_conf}"; then
+            sed -i 's/^;*\s*max_input_time\s*=.*/max_input_time = 1000/' "${fpm_conf}"
+        else
+            echo -e "\n; Set max_input_time for long-running requests\nmax_input_time = 1000" >> "${fpm_conf}"
+        fi
+        log_info "✅ Set max_input_time = 1000 in ${fpm_conf}"
+    fi
+    
+    # Ensure it's set in the pool configuration
+    if [ -f "${pool_conf}" ]; then
+        if grep -q '^;*\s*php_admin_value\[max_input_time\]' "${pool_conf}"; then
+            sed -i 's/^;*\s*php_admin_value\[max_input_time\].*/php_admin_value[max_input_time] = 1000/' "${pool_conf}"
+        else
+            echo -e "\n; Set max_input_time for long-running requests\nphp_admin_value[max_input_time] = 1000" >> "${pool_conf}"
+        fi
+        log_info "✅ Set php_admin_value[max_input_time] = 1000 in ${pool_conf}"
     fi
     
     # Also ensure it's set in the custom config
     local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/99-nextcloud.ini"
     if [ -f "${nextcloud_ini}" ]; then
-        if grep -q '^max_input_time\s*=' "${nextcloud_ini}"; then
-            sed -i 's/^max_input_time\s*=.*/max_input_time = 1000/' "${nextcloud_ini}"
+        if grep -q '^;*\s*max_input_time\s*=' "${nextcloud_ini}"; then
+            sed -i 's/^;*\s*max_input_time\s*=.*/max_input_time = 1000/' "${nextcloud_ini}"
         else
-            echo "max_input_time = 1000" >> "${nextcloud_ini}"
+            echo -e "\n; Set max_input_time for long-running requests\nmax_input_time = 1000" >> "${nextcloud_ini}"
         fi
         log_info "✅ Set max_input_time = 1000 in ${nextcloud_ini}"
+    fi
+    
+    # Force reload PHP-FPM to apply changes
+    if systemctl is-active --quiet "php${PHP_VERSION}-fpm"; then
+        log_info "🔄 Reloading PHP-FPM to apply max_input_time changes..."
+        systemctl reload "php${PHP_VERSION}-fpm" || {
+            log_warning "⚠️  Failed to reload PHP-FPM, trying full restart..."
+            systemctl restart "php${PHP_VERSION}-fpm" || {
+                log_error "❌ Failed to restart PHP-FPM"
+                return 1
+            }
+        }
+        log_success "✅ PHP-FPM reloaded successfully"
     fi
 }
 
