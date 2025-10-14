@@ -217,6 +217,11 @@ apply_php_settings() {
         fi
     done
 
+    # Always remove before creating
+    if [ -f "${nextcloud_ini}" ]; then
+        rm -f "${nextcloud_ini}"
+    fi
+
     # Create a new configuration file with all settings
     cat > "${nextcloud_ini}" << 'EOF'
 ; Nextcloud recommended PHP settings
@@ -527,13 +532,13 @@ configure_php_fpm() {
         fi
     done
     
-    # Create a single consolidated PHP configuration for Nextcloud
+    # Always remove before creating
     local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/99-nextcloud.ini"
-    
+    if [ -f "${nextcloud_ini}" ]; then
+        rm -f "${nextcloud_ini}"
+    fi
+
     log_info "📝 Creating consolidated Nextcloud PHP configuration..."
-    
-    # Create parent directory if it doesn't exist
-    mkdir -p "$(dirname "${nextcloud_ini}")"
     
     # Create new configuration file with proper permissions
     touch -f "${nextcloud_ini}"
@@ -973,14 +978,23 @@ install_php_stack() {
             fix_max_input_time
         fi
 
-        # Restart PHP-FPM one final time to ensure all settings are applied
-        log_info "🔄 Performing final restart of PHP-FPM to apply all configurations..."
-        if systemctl restart "php${PHP_VERSION}-fpm"; then
-            log_success "✅ PHP-FPM restarted successfully after applying all settings"
-        else
-            log_error "❌ Failed to restart PHP-FPM after applying settings. Showing logs..."
-            journalctl -u "php${PHP_VERSION}-fpm" -n 20 --no-pager
-            success=false
+        # Only restart PHP-FPM if config is valid
+        if [ "$success" = true ]; then
+            log_info "🔄 Performing final restart of PHP-FPM to apply all configurations..."
+            if php-fpm${PHP_VERSION} -t; then
+                if systemctl restart "php${PHP_VERSION}-fpm"; then
+                    log_success "✅ PHP-FPM restarted successfully after applying all settings"
+                else
+                    log_error "❌ Failed to restart PHP-FPM after applying settings. Showing logs..."
+                    journalctl -u "php${PHP_VERSION}-fpm" -n 20 --no-pager
+                    systemctl status "php${PHP_VERSION}-fpm" --no-pager
+                    success=false
+                fi
+            else
+                log_error "❌ PHP-FPM configuration test failed. Not restarting service."
+                php-fpm${PHP_VERSION} -t
+                success=false
+            fi
         fi
     fi
     
@@ -1147,4 +1161,3 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     install_php_stack
     exit $?
 fi
-}
