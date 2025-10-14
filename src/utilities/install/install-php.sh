@@ -1028,3 +1028,4 @@ fix_max_input_time() {
         fi
         log_success "✅ PHP-FPM reloaded successfully"
     fi
+}
