@@ -182,6 +182,80 @@ install_php() {
     return 0
 }
 
+# Function to apply recommended PHP settings
+apply_php_settings() {
+    local php_ini_path="/etc/php/${PHP_VERSION}/fpm/php.ini"
+    local php_fpm_conf="/etc/php/${PHP_VERSION}/fpm/php-fpm.conf"
+    
+    log_info "🔧 Applying recommended PHP settings..."
+    
+    # Create a backup of the original php.ini
+    if [ ! -f "${php_ini_path}.original" ]; then
+        cp "${php_ini_path}" "${php_ini_path}.original"
+    fi
+    
+    # Define the settings to update
+    declare -A settings=(
+        ["memory_limit"]="2G"
+        ["upload_max_filesize"]="10G"
+        ["post_max_size"]="10G"
+        ["max_execution_time"]="3600"
+        ["max_input_time"]="3600"
+        ["date.timezone"]="UTC"
+        ["opcache.enable"]="1"
+        ["opcache.enable_cli"]="1"
+        ["opcache.memory_consumption"]="256"
+        ["opcache.interned_strings_buffer"]="16"
+        ["opcache.max_accelerated_files"]="10000"
+        ["opcache.validate_timestamps"]="1"
+        ["opcache.save_comments"]="1"
+        ["session.gc_maxlifetime"]="3600"
+        ["session.cookie_lifetime"]="0"
+        ["session.cookie_httponly"]="1"
+        ["session.cookie_secure"]="1"
+        ["session.use_strict_mode"]="1"
+    )
+    
+    # Update each setting
+    for setting in "${!settings[@]}"; do
+        local value="${settings[$setting]}"
+        
+        # Check if setting exists and is not commented
+        if grep -q -E "^;?\s*${setting}\s*=" "${php_ini_path}"; then
+            # Update existing setting
+            sed -i -E "s/^;?\s*${setting}\s*=.*$/${setting} = ${value}/" "${php_ini_path}"
+        else
+            # Add new setting
+            echo "${setting} = ${value}" >> "${php_ini_path}"
+        fi
+        
+        log_info "✅ Set ${setting} = ${value}"
+    done
+    
+    # Ensure the PHP-FPM configuration is properly set
+    if [ -f "${php_fpm_conf}" ]; then
+        # Set emergency_restart_threshold and emergency_restart_interval
+        for setting in emergency_restart_threshold emergency_restart_interval process_control_timeout; do
+            if ! grep -q "^${setting}" "${php_fpm_conf}"; then
+                case "${setting}" in
+                    emergency_restart_threshold)
+                        echo "emergency_restart_threshold = 10" >> "${php_fpm_conf}"
+                        ;;
+                    emergency_restart_interval)
+                        echo "emergency_restart_interval = 1m" >> "${php_fpm_conf}"
+                        ;;
+                    process_control_timeout)
+                        echo "process_control_timeout = 10s" >> "${php_fpm_conf}"
+                        ;;
+                esac
+            fi
+        done
+    fi
+    
+    log_success "✅ PHP settings applied successfully"
+    return 0
+}
+
 # Function to install and configure PHP-FPM
 configure_php_fpm() {
     log_info "Configuring PHP-FPM service for Apache..."
@@ -606,6 +680,13 @@ install_php_stack() {
         log_section "3. Configuring PHP-FPM"
         if ! configure_php_fpm; then
             log_error "Failed to configure PHP-FPM"
+            success=false
+        fi
+        
+        # Apply recommended PHP settings
+        log_section "3.1. Applying Recommended PHP Settings"
+        if ! apply_php_settings; then
+            log_error "Failed to apply recommended PHP settings"
             success=false
         fi
     fi
