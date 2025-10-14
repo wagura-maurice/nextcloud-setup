@@ -275,32 +275,57 @@ EOF
     
     # Also update the main php.ini with critical settings
     log_info "🔧 Updating main PHP configuration..."
-    for setting in \
-        "memory_limit=2G" \
-        "upload_max_filesize=10G" \
-        "post_max_size=10G" \
-        "max_execution_time=3600" \
-        "max_input_time=3600"; do
+    
+    # First, create a backup of the original php.ini if we haven't already
+    if [ ! -f "${php_ini_path}.original" ]; then
+        cp "${php_ini_path}" "${php_ini_path}.original"
+    fi
+    
+    # Create a temporary file for the new php.ini
+    local temp_ini="${php_ini_path}.new"
+    cp "${php_ini_path}.original" "${temp_ini}"
+    
+    # Define the settings we want to ensure are set in the main php.ini
+    declare -A main_settings=(
+        ["memory_limit"]="2G"
+        ["upload_max_filesize"]="10G"
+        ["post_max_size"]="10G"
+        ["max_execution_time"]="3600"
+        ["max_input_time"]="3600"
+    )
+    
+    # Process each setting
+    for setting in "${!main_settings[@]}"; do
+        local value="${main_settings[$setting]}"
         
-        local key="${setting%=*}"
-        local value="${setting#*=}"
+        # Remove any existing setting (commented or not)
+        sed -i -E "/^;?\s*${setting}\s*=/d" "${temp_ini}"
         
-        if grep -q -E "^;?\s*${key}\s*=" "${php_ini_path}"; then
-            # Update existing setting
-            sed -i -E "s/^;?\s*${key}\s*=.*$/${key} = ${value}/" "${php_ini_path}"
-        else
-            # Add new setting
-            echo "${key} = ${value}" >> "${php_ini_path}"
-        fi
-        log_info "✅ Set ${key} = ${value} in ${php_ini_path##*/}"
+        # Add our setting at the end of the file
+        echo "${setting} = ${value}" >> "${temp_ini}"
+        log_info "✅ Set ${setting} = ${value} in ${php_ini_path##*/}"
     done
     
-        # Move the temporary file to the final location
-    if mv "${nextcloud_ini}.tmp" "${nextcloud_ini}"; then
-        chmod 644 "${nextcloud_ini}"
-        log_info "✅ Created ${nextcloud_ini}"
+    # Replace the original with our updated version
+    mv "${temp_ini}" "${php_ini_path}"
+    chmod 644 "${php_ini_path}"
+    
+        # Move the temporary file to the final location with a high number to ensure it loads last
+    local final_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/99-nextcloud.ini"
+    
+    # Remove any existing nextcloud ini files that might cause conflicts
+    for f in "/etc/php/${PHP_VERSION}/fpm/conf.d/"*nextcloud*.ini; do
+        if [ "$f" != "$final_ini" ] && [ -f "$f" ]; then
+            log_info "Removing conflicting PHP config: $f"
+            rm -f "$f" || sudo rm -f "$f"
+        fi
+    done
+    
+    if mv "${nextcloud_ini}.tmp" "$final_ini"; then
+        chmod 644 "$final_ini"
+        log_info "✅ Created $final_ini"
     else
-        log_error "❌ Failed to create ${nextcloud_ini}"
+        log_error "❌ Failed to create $final_ini"
         return 1
     fi
     
