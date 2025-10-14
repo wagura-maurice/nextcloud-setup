@@ -281,16 +281,13 @@ EOF
     local cli_ini_path="/etc/php/${PHP_VERSION}/cli/php.ini"
     if [ -f "${cli_ini_path}" ]; then
         log_info "🔧 Updating CLI PHP configuration..."
-        
         if [ ! -f "${cli_ini_path}.original" ]; then
             cp "${cli_ini_path}" "${cli_ini_path}.original"
         fi
-        
         # Create CLI-specific config
         local cli_conf_dir="/etc/php/${PHP_VERSION}/cli/conf.d"
         mkdir -p "${cli_conf_dir}"
-        
-        cat > "${cli_conf_dir}/99-nextcloud.ini" << 'EOF'
+        cat >| "${cli_conf_dir}/99-nextcloud.ini" << 'EOF'
 ; Nextcloud recommended PHP settings for CLI
 memory_limit = 2G
 upload_max_filesize = 10G
@@ -306,7 +303,6 @@ opcache.validate_timestamps = 1
 opcache.save_comments = 1
 max_input_vars = 2000
 EOF
-        
         chmod 644 "${cli_conf_dir}/99-nextcloud.ini"
     fi
     
@@ -428,7 +424,7 @@ configure_php_fpm() {
     mkdir -p "$(dirname "${nextcloud_ini}")"
     
     # Create new configuration file with proper permissions
-    touch "${nextcloud_ini}"
+    touch -f "${nextcloud_ini}"
     chmod 644 "${nextcloud_ini}"
     
     # Write the consolidated configuration
@@ -851,14 +847,20 @@ install_php_stack() {
             log_error "Failed to configure PHP-FPM"
             success=false
         fi
-        
+
         # Apply recommended PHP settings
         log_section "3.1. Applying Recommended PHP Settings"
         if ! apply_php_settings; then
             log_error "Failed to apply recommended PHP settings"
             success=false
         fi
-        
+
+        # Fix critical PHP settings before verification
+        if [ "$success" = true ]; then
+            log_section "3.2. Fixing Critical PHP Settings"
+            fix_max_input_time
+        fi
+
         # Restart PHP-FPM one final time to ensure all settings are applied
         log_info "🔄 Performing final restart of PHP-FPM to apply all configurations..."
         if systemctl restart "php${PHP_VERSION}-fpm"; then
@@ -923,6 +925,45 @@ install_php_stack() {
         log_info "2. Verify PHP-FPM status: systemctl status php${PHP_VERSION}-fpm"
         log_info "3. Check PHP-FPM logs: tail -f /var/log/php${PHP_VERSION}-fpm.log"
         return 1
+    fi
+}
+
+# Function to ensure max_input_time is properly set
+fix_max_input_time() {
+    log_info "🔧 Ensuring max_input_time is set to 1000..."
+    
+    local php_ini_path="/etc/php/${PHP_VERSION}/fpm/php.ini"
+    local cli_ini_path="/etc/php/${PHP_VERSION}/cli/php.ini"
+    
+    # Fix FPM configuration
+    if [ -f "${php_ini_path}" ]; then
+        if grep -q '^max_input_time\s*=' "${php_ini_path}"; then
+            sed -i 's/^max_input_time\s*=.*/max_input_time = 1000/' "${php_ini_path}"
+        else
+            echo "max_input_time = 1000" >> "${php_ini_path}"
+        fi
+        log_info "✅ Set max_input_time = 1000 in ${php_ini_path}"
+    fi
+    
+    # Fix CLI configuration
+    if [ -f "${cli_ini_path}" ]; then
+        if grep -q '^max_input_time\s*=' "${cli_ini_path}"; then
+            sed -i 's/^max_input_time\s*=.*/max_input_time = 1000/' "${cli_ini_path}"
+        else
+            echo "max_input_time = 1000" >> "${cli_ini_path}"
+        fi
+        log_info "✅ Set max_input_time = 1000 in ${cli_ini_path}"
+    fi
+    
+    # Also ensure it's set in the custom config
+    local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/99-nextcloud.ini"
+    if [ -f "${nextcloud_ini}" ]; then
+        if grep -q '^max_input_time\s*=' "${nextcloud_ini}"; then
+            sed -i 's/^max_input_time\s*=.*/max_input_time = 1000/' "${nextcloud_ini}"
+        else
+            echo "max_input_time = 1000" >> "${nextcloud_ini}"
+        fi
+        log_info "✅ Set max_input_time = 1000 in ${nextcloud_ini}"
     fi
 }
 
