@@ -930,19 +930,24 @@ install_php_stack() {
 
 # Function to ensure max_input_time is properly set
 fix_max_input_time() {
-    log_info "🔧 Ensuring max_input_time is set to 1000..."
-    
     local php_ini_path="/etc/php/${PHP_VERSION}/fpm/php.ini"
     local cli_ini_path="/etc/php/${PHP_VERSION}/cli/php.ini"
     local fpm_conf="/etc/php/${PHP_VERSION}/fpm/php-fpm.conf"
     local pool_conf="/etc/php/${PHP_VERSION}/fpm/pool.d/www.conf"
+    local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/99-nextcloud.ini"
     
     # Fix FPM configuration
     if [ -f "${php_ini_path}" ]; then
         if grep -q '^;*\s*max_input_time\s*=' "${php_ini_path}"; then
-            sed -i 's/^;*\s*max_input_time\s*=.*/max_input_time = 1000/' "${php_ini_path}"
+            if ! sed -i 's/^;*\s*max_input_time\s*=.*/max_input_time = 1000/' "${php_ini_path}"; then
+                log_error "Failed to set max_input_time in ${php_ini_path}"
+                return 1
+            fi
         else
-            echo -e "\n; Set max_input_time for long-running requests\nmax_input_time = 1000" >> "${php_ini_path}"
+            if ! echo -e "\n; Set max_input_time for long-running requests\nmax_input_time = 1000" >> "${php_ini_path}"; then
+                log_error "Failed to append max_input_time to ${php_ini_path}"
+                return 1
+            fi
         fi
         log_info "✅ Set max_input_time = 1000 in ${php_ini_path}"
     fi
@@ -950,9 +955,15 @@ fix_max_input_time() {
     # Fix CLI configuration
     if [ -f "${cli_ini_path}" ]; then
         if grep -q '^;*\s*max_input_time\s*=' "${cli_ini_path}"; then
-            sed -i 's/^;*\s*max_input_time\s*=.*/max_input_time = 1000/' "${cli_ini_path}"
+            if ! sed -i 's/^;*\s*max_input_time\s*=.*/max_input_time = 1000/' "${cli_ini_path}"; then
+                log_error "Failed to set max_input_time in ${cli_ini_path}"
+                return 1
+            fi
         else
-            echo -e "\n; Set max_input_time for long-running requests\nmax_input_time = 1000" >> "${cli_ini_path}"
+            if ! echo -e "\n; Set max_input_time for long-running requests\nmax_input_time = 1000" >> "${cli_ini_path}"; then
+                log_error "Failed to append max_input_time to ${cli_ini_path}"
+                return 1
+            fi
         fi
         log_info "✅ Set max_input_time = 1000 in ${cli_ini_path}"
     fi
@@ -960,9 +971,15 @@ fix_max_input_time() {
     # Ensure it's set in the PHP-FPM main config
     if [ -f "${fpm_conf}" ]; then
         if grep -q '^;*\s*max_input_time\s*=' "${fpm_conf}"; then
-            sed -i 's/^;*\s*max_input_time\s*=.*/max_input_time = 1000/' "${fpm_conf}"
+            if ! sed -i 's/^;*\s*max_input_time\s*=.*/max_input_time = 1000/' "${fpm_conf}"; then
+                log_error "Failed to set max_input_time in ${fpm_conf}"
+                return 1
+            fi
         else
-            echo -e "\n; Set max_input_time for long-running requests\nmax_input_time = 1000" >> "${fpm_conf}"
+            if ! echo -e "\n; Set max_input_time for long-running requests\nmax_input_time = 1000" >> "${fpm_conf}"; then
+                log_error "Failed to append max_input_time to ${fpm_conf}"
+                return 1
+            fi
         fi
         log_info "✅ Set max_input_time = 1000 in ${fpm_conf}"
     fi
@@ -970,20 +987,31 @@ fix_max_input_time() {
     # Ensure it's set in the pool configuration
     if [ -f "${pool_conf}" ]; then
         if grep -q '^;*\s*php_admin_value\[max_input_time\]' "${pool_conf}"; then
-            sed -i 's/^;*\s*php_admin_value\[max_input_time\].*/php_admin_value[max_input_time] = 1000/' "${pool_conf}"
+            if ! sed -i 's/^;*\s*php_admin_value\[max_input_time\].*/php_admin_value[max_input_time] = 1000/' "${pool_conf}"; then
+                log_error "Failed to set php_admin_value[max_input_time] in ${pool_conf}"
+                return 1
+            fi
         else
-            echo -e "\n; Set max_input_time for long-running requests\nphp_admin_value[max_input_time] = 1000" >> "${pool_conf}"
+            if ! echo -e "\n; Set max_input_time for long-running requests\nphp_admin_value[max_input_time] = 1000" >> "${pool_conf}"; then
+                log_error "Failed to append php_admin_value[max_input_time] to ${pool_conf}"
+                return 1
+            fi
         fi
         log_info "✅ Set php_admin_value[max_input_time] = 1000 in ${pool_conf}"
     fi
     
     # Also ensure it's set in the custom config
-    local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/99-nextcloud.ini"
     if [ -f "${nextcloud_ini}" ]; then
         if grep -q '^;*\s*max_input_time\s*=' "${nextcloud_ini}"; then
-            sed -i 's/^;*\s*max_input_time\s*=.*/max_input_time = 1000/' "${nextcloud_ini}"
+            if ! sed -i 's/^;*\s*max_input_time\s*=.*/max_input_time = 1000/' "${nextcloud_ini}"; then
+                log_error "Failed to set max_input_time in ${nextcloud_ini}"
+                return 1
+            fi
         else
-            echo -e "\n; Set max_input_time for long-running requests\nmax_input_time = 1000" >> "${nextcloud_ini}"
+            if ! echo -e "\n; Set max_input_time for long-running requests\nmax_input_time = 1000" >> "${nextcloud_ini}"; then
+                log_error "Failed to append max_input_time to ${nextcloud_ini}"
+                return 1
+            fi
         fi
         log_info "✅ Set max_input_time = 1000 in ${nextcloud_ini}"
     fi
@@ -991,24 +1019,12 @@ fix_max_input_time() {
     # Force reload PHP-FPM to apply changes
     if systemctl is-active --quiet "php${PHP_VERSION}-fpm"; then
         log_info "🔄 Reloading PHP-FPM to apply max_input_time changes..."
-        systemctl reload "php${PHP_VERSION}-fpm" || {
+        if ! systemctl reload "php${PHP_VERSION}-fpm" 2>/dev/null; then
             log_warning "⚠️  Failed to reload PHP-FPM, trying full restart..."
-            systemctl restart "php${PHP_VERSION}-fpm" || {
+            if ! systemctl restart "php${PHP_VERSION}-fpm" 2>/dev/null; then
                 log_error "❌ Failed to restart PHP-FPM"
                 return 1
-            }
-        }
+            fi
+        fi
         log_success "✅ PHP-FPM reloaded successfully"
     fi
-}
-
-# Main execution
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    if [[ $EUID -ne 0 ]]; then
-        log_error "This script must be run as root"
-        exit 1
-    fi
-    
-    install_php_stack
-    exit $?
-fi
