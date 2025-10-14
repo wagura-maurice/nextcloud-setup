@@ -381,38 +381,139 @@ configure_php_fpm() {
     local php_fpm_service="php${PHP_VERSION}-fpm"
     local php_ini_path="/etc/php/${PHP_VERSION}/fpm/php.ini"
     local fpm_conf_path="/etc/php/${PHP_VERSION}/fpm/pool.d/www.conf"
+    local log_dir="/var/log/php${PHP_VERSION}-fpm"
+    
+    # Create and set permissions for log directory
+    if ! mkdir -p "$log_dir"; then
+        log_error "Failed to create log directory: $log_dir"
+        return 1
+    fi
+    
+    if ! chown -R www-data:www-data "$log_dir"; then
+        log_warning "Failed to change ownership of $log_dir to www-data"
+    fi
+    
+    if ! chmod 755 "$log_dir"; then
+        log_warning "Failed to set permissions for $log_dir"
+    fi
+    
+    # Create log files with proper permissions
+    for logfile in "error.log" "www-error.log" "slow.log" "access.log"; do
+        log_path="$log_dir/$logfile"
+        if ! touch "$log_path"; then
+            log_error "Failed to create log file: $log_path"
+            return 1
+        fi
+        
+        if ! chown www-data:www-data "$log_path"; then
+            log_warning "Failed to change ownership of $log_path to www-data"
+        fi
+        
+        if ! chmod 644 "$log_path"; then
+            log_warning "Failed to set permissions for $log_path"
+        fi
+    done
     
     # Check if PHP-FPM package is installed, if not install it
     if ! dpkg -l | grep -q "php${PHP_VERSION}-fpm"; then
         log_info "PHP-FPM package not found, installing..."
-        if ! apt-get install -y --no-install-recommends "${php_fpm_service}"; then
-            log_error "Failed to install ${php_fpm_service}"
+        if ! apt-get update; then
+            log_error "Failed to update package lists"
             return 1
         fi
+        
+        if ! apt-get install -y --no-install-recommends "${php_fpm_service}"; then
+            log_error "Failed to install ${php_fpm_service}"
+            log_info "Trying to fix broken packages..."
+            apt-get -f install -y || {
+                log_error "Failed to fix broken packages"
+                return 1
+            }
+            
+            if ! apt-get install -y --no-install-recommends "${php_fpm_service}"; then
+                log_error "Still failed to install ${php_fpm_service} after fixing packages"
+                return 1
+            fi
+        fi
+        
+        log_success "Successfully installed ${php_fpm_service}"
+    else
+        log_info "${php_fpm_service} is already installed"
     fi
     
     # Verify the service file exists
-    if [ ! -f "/lib/systemd/system/${php_fpm_service}.service" ]; then
-        log_error "PHP-FPM service file not found after installation"
-        return 1
+    local service_file="/lib/systemd/system/${php_fpm_service}.service"
+    if [ ! -f "$service_file" ]; then
+        log_error "PHP-FPM service file not found: $service_file"
+        log_info "Trying to find the service file in other locations..."
+        
+        # Try alternative locations
+        service_file=$(find /etc -name "${php_fpm_service}.service" 2>/dev/null | head -1)
+        
+        if [ -z "$service_file" ]; then
+            log_error "Could not find ${php_fpm_service}.service in any standard location"
+            log_info "Attempting to reinstall the package..."
+            
+            if ! apt-get install --reinstall -y "${php_fpm_service}"; then
+                log_error "Failed to reinstall ${php_fpm_service}"
+                return 1
+            fi
+            
+            if [ ! -f "/lib/systemd/system/${php_fpm_service}.service" ]; then
+                log_error "Service file still not found after reinstallation"
+                return 1
+            fi
+            service_file="/lib/systemd/system/${php_fpm_service}.service"
+        fi
     fi
+    
+    log_info "Using service file: $service_file"
     
     # Ensure the service is enabled and started
-    if ! systemctl is-enabled "${php_fpm_service}" >/dev/null 2>&1; then
-        log_info "Enabling ${php_fpm_service} service..."
-        systemctl enable "${php_fpm_service}" || {
-            log_error "Failed to enable ${php_fpm_service} service"
-            return 1
-        }
+    log_info "Managing ${php_fpm_service} service..."
+    
+    # Reload systemd to ensure it knows about the service
+    if ! systemctl daemon-reload; then
+        log_warning "Failed to reload systemd daemon, but continuing..."
     fi
     
-    # Start the service if not running
-    if ! systemctl is-active "${php_fpm_service}" >/dev/null 2>&1; then
+    # Enable the service if not already enabled
+    if ! systemctl is-enabled "${php_fpm_service}" >/dev/null 2>&1; then
+        log_info "Enabling ${php_fpm_service} service..."
+        if ! systemctl enable "${php_fpm_service}" --now; then
+            log_error "Failed to enable ${php_fpm_service} service"
+            log_info "Attempting to start the service anyway..."
+        fi
+    else
+        log_info "${php_fpm_service} service is already enabled"
+    fi
+    
+    # Check service status and start if not running
+    if systemctl is-active "${php_fpm_service}" >/dev/null 2>&1; then
+        log_info "${php_fpm_service} is already running"
+    else
         log_info "Starting ${php_fpm_service} service..."
-        systemctl start "${php_fpm_service}" || {
+        if ! systemctl start "${php_fpm_service}"; then
             log_error "Failed to start ${php_fpm_service} service"
+            log_info "Checking for configuration errors..."
+            
+            # Test the PHP-FPM configuration
+            if command -v "php-fpm${PHP_VERSION}" >/dev/null 2>&1; then
+                if ! "php-fpm${PHP_VERSION}" -t; then
+                    log_error "PHP-FPM configuration test failed"
+                fi
+            fi
+            
+            # Show the last few lines of the error log
+            log_info "Last 20 lines of PHP-FPM error log:"
+            tail -n 20 "${log_dir}/error.log" 2>/dev/null || echo "No error log available"
+            
+            # Show the last few lines of the systemd journal
+            log_info "Last 20 lines of systemd journal for ${php_fpm_service}:"
+            journalctl -u "${php_fpm_service}" -n 20 --no-pager 2>/dev/null || echo "Could not retrieve journal entries"
+            
             return 1
-        }
+        fi
     fi
     
     # Configure PHP.ini
