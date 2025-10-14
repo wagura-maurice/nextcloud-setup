@@ -217,7 +217,7 @@ memory_limit = 2G
 upload_max_filesize = 10G
 post_max_size = 10G
 max_execution_time = 3600
-max_input_time = 3600
+max_input_time = 1000
 
 ; Timezone
 date.timezone = UTC
@@ -296,7 +296,7 @@ memory_limit = 2G
 upload_max_filesize = 10G
 post_max_size = 10G
 max_execution_time = 3600
-max_input_time = 3600
+max_input_time = 1000
 date.timezone = UTC
 opcache.enable_cli = 1
 opcache.memory_consumption = 256
@@ -441,7 +441,7 @@ memory_limit = 2G
 upload_max_filesize = 10G
 post_max_size = 10G
 max_execution_time = 3600
-max_input_time = 3600
+max_input_time = 1000
 
 ; Timezone
 date.timezone = UTC
@@ -521,7 +521,7 @@ EOF
         "post_max_size = 10G" \
         "memory_limit = 2G" \
         "max_execution_time = 3600" \
-        "max_input_time = 3600" \
+        "max_input_time = 1000" \
         "date.timezone = UTC"; do
         local key=${setting%%=*}
         key=${key// /}
@@ -631,7 +631,7 @@ verify_installation() {
         ["upload_max_filesize"]="10G"
         ["post_max_size"]="10G"
         ["max_execution_time"]="3600"
-        ["max_input_time"]="3600"
+        ["max_input_time"]="1000"
         ["date.timezone"]="UTC"
         ["opcache.enable"]="1"
         ["opcache.enable_cli"]="1"
