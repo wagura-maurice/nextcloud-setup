@@ -324,7 +324,7 @@ EOF
     mv "${temp_ini}" "${php_ini_path}"
     chmod 644 "${php_ini_path}"
     
-        # Move the temporary file to the final location with a high number to ensure it loads last
+    # Move the temporary file to the final location with a high number to ensure it loads last
     local final_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/99-nextcloud.ini"
     
     # Remove any existing nextcloud ini files that might cause conflicts
@@ -341,6 +341,26 @@ EOF
     else
         log_error "❌ Failed to create $final_ini"
         return 1
+    fi
+    
+    # Ensure that the settings are also applied to the CLI version of PHP
+    local cli_ini_path="/etc/php/${PHP_VERSION}/cli/php.ini"
+    if [ -f "${cli_ini_path}" ]; then
+        log_info "🔧 Updating CLI PHP configuration..."
+        # Create backup if not exists
+        if [ ! -f "${cli_ini_path}.original" ]; then
+            cp "${cli_ini_path}" "${cli_ini_path}.original"
+        fi
+        
+        # Apply same settings to CLI version
+        for setting in "${!main_settings[@]}"; do
+            local value="${main_settings[$setting]}"
+            # Remove any existing setting
+            sed -i -E "/^;?\s*${setting}\s*=/d" "${cli_ini_path}"
+            # Add our setting
+            echo "${setting} = ${value}" >> "${cli_ini_path}"
+        done
+        chmod 644 "${cli_ini_path}"
     fi
     
     # Ensure the PHP-FPM configuration is properly set
@@ -670,8 +690,23 @@ verify_installation() {
             local expected_bytes
             local actual_bytes
             
-            expected_bytes=$(php${PHP_VERSION} -r "echo \\ini_get_bytes('${expected_value}');" 2>/dev/null)
-            actual_bytes=$(php${PHP_VERSION} -r "echo \\ini_get_bytes('${actual_value}');" 2>/dev/null)
+            # Manual conversion of expected value
+            local expected_upper=$(echo "${expected_value}" | tr '[:lower:]' '[:upper:]')
+            case "${expected_upper}" in
+                *G) expected_bytes=$(( ${expected_upper%G} * 1024 * 1024 * 1024 )) ;;
+                *M) expected_bytes=$(( ${expected_upper%M} * 1024 * 1024 )) ;;
+                *K) expected_bytes=$(( ${expected_upper%K} * 1024 )) ;;
+                *) expected_bytes="${expected_upper}" ;;
+            esac
+            
+            # Manual conversion of actual value
+            local actual_upper=$(echo "${actual_value}" | tr '[:lower:]' '[:upper:]')
+            case "${actual_upper}" in
+                *G) actual_bytes=$(( ${actual_upper%G} * 1024 * 1024 * 1024 )) ;;
+                *M) actual_bytes=$(( ${actual_upper%M} * 1024 * 1024 )) ;;
+                *K) actual_bytes=$(( ${actual_upper%K} * 1024 )) ;;
+                *) actual_bytes="${actual_upper}" ;;
+            esac
             
             if [ -z "${expected_bytes}" ] || [ -z "${actual_bytes}" ]; then
                 log_warning "⚠️  Could not compare values for ${setting}: expected=${expected_value}, actual=${actual_value}"
@@ -884,54 +919,3 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     install_php_stack
     exit $?
 fi
-    apt-get update
-fi
-
-# Install PHP-FPM and extensions
-log_info "Installing PHP-FPM ${PHP_VERSION} and extensions..."
-DEBIAN_FRONTEND=noninteractive apt-get install -y "${PHP_PACKAGES[@]}"
-
-# Verify installation
-if ! command -v "php${PHP_VERSION}" >/dev/null 2>&1; then
-    log_error "PHP ${PHP_VERSION} installation failed"
-    exit 1
-fi
-
-# Create PHP-FPM pool directory if it doesn't exist
-PHP_POOL_DIR="/etc/php/${PHP_VERSION}/fpm/pool.d"
-if [ ! -d "$PHP_POOL_DIR" ]; then
-    mkdir -p "$PHP_POOL_DIR"
-fi
-
-# Create a basic PHP-FPM pool configuration
-log_info "Creating PHP-FPM pool configuration..."
-cat > "${PHP_POOL_DIR}/nextcloud.conf" <<EOF
-[nextcloud]
-user = www-data
-group = www-data
-listen = /run/php/php${PHP_VERSION}-fpm-nextcloud.sock
-listen.owner = www-data
-listen.group = www-data
-pm = dynamic
-pm.max_children = 50
-pm.start_servers = 5
-pm.min_spare_servers = 5
-pm.max_spare_servers = 35
-pm.max_requests = 500
-EOF
-
-# Enable and start PHP-FPM
-log_info "Starting PHP-FPM service..."
-systemctl enable "php${PHP_VERSION}-fpm"
-systemctl start "php${PHP_VERSION}-fpm"
-
-# Verify PHP-FPM is running
-if ! systemctl is-active --quiet "php${PHP_VERSION}-fpm"; then
-    log_error "PHP-FPM ${PHP_VERSION} failed to start"
-    journalctl -u "php${PHP_VERSION}-fpm" -n 50 --no-pager
-    exit 1
-fi
-
-log_success "PHP-FPM ${PHP_VERSION} installation completed"
-log_info "Run the configuration script to optimize PHP settings:"
-log_info "  ./src/utilities/configure/configure-php.sh"
