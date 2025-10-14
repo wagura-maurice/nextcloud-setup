@@ -186,6 +186,7 @@ install_php() {
 apply_php_settings() {
     local php_ini_path="/etc/php/${PHP_VERSION}/fpm/php.ini"
     local php_fpm_conf="/etc/php/${PHP_VERSION}/fpm/php-fpm.conf"
+    local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/90-nextcloud.ini"
     
     log_info "🔧 Applying recommended PHP settings..."
     
@@ -194,62 +195,125 @@ apply_php_settings() {
         cp "${php_ini_path}" "${php_ini_path}.original"
     fi
     
-    # Define the settings to update
-    declare -A settings=(
-        ["memory_limit"]="2G"
-        ["upload_max_filesize"]="10G"
-        ["post_max_size"]="10G"
-        ["max_execution_time"]="3600"
-        ["max_input_time"]="3600"
-        ["date.timezone"]="UTC"
-        ["opcache.enable"]="1"
-        ["opcache.enable_cli"]="1"
-        ["opcache.memory_consumption"]="256"
-        ["opcache.interned_strings_buffer"]="16"
-        ["opcache.max_accelerated_files"]="10000"
-        ["opcache.validate_timestamps"]="1"
-        ["opcache.save_comments"]="1"
-        ["session.gc_maxlifetime"]="3600"
-        ["session.cookie_lifetime"]="0"
-        ["session.cookie_httponly"]="1"
-        ["session.cookie_secure"]="1"
-        ["session.use_strict_mode"]="1"
-    )
+    # Create or update the Nextcloud-specific ini file
+    log_info "📝 Updating Nextcloud PHP configuration..."
+    cat > "${nextcloud_ini}" << EOF
+; Nextcloud recommended PHP settings
+; This file is auto-generated - do not edit manually
+
+; Resource limits
+memory_limit = 2G
+upload_max_filesize = 10G
+post_max_size = 10G
+max_execution_time = 3600
+max_input_time = 3600
+
+; Timezone
+date.timezone = UTC
+
+; OPcache settings
+opcache.enable = 1
+opcache.enable_cli = 1
+opcache.memory_consumption = 256
+opcache.interned_strings_buffer = 16
+opcache.max_accelerated_files = 10000
+opcache.validate_timestamps = 1
+opcache.save_comments = 1
+
+; Session settings
+session.gc_maxlifetime = 3600
+session.cookie_lifetime = 0
+session.cookie_httponly = 1
+session.cookie_secure = 1
+session.use_strict_mode = 1
+
+; Disable PHP output buffering
+output_buffering = Off
+
+; Disable expose_php for security
+expose_php = Off
+
+; Enable file uploads
+file_uploads = On
+
+; Set default charset
+default_charset = "UTF-8"
+
+; Disable dangerous functions
+disable_functions = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
+
+; Increase realpath cache size
+realpath_cache_size = 512k
+realpath_cache_ttl = 3600
+
+; Increase max input variables
+max_input_vars = 2000
+
+; Ensure these settings are not overridden in .user.ini files
+user_ini.filename =
+
+; Ensure this setting is not overridden in .htaccess
+htaccess_force_redirect = 1
+EOF
+
+    # Set correct permissions
+    chmod 644 "${nextcloud_ini}"
     
-    # Update each setting
-    for setting in "${!settings[@]}"; do
-        local value="${settings[$setting]}"
+    # Also update the main php.ini with critical settings
+    log_info "🔧 Updating main PHP configuration..."
+    for setting in \
+        "memory_limit=2G" \
+        "upload_max_filesize=10G" \
+        "post_max_size=10G" \
+        "max_execution_time=3600" \
+        "max_input_time=3600"; do
         
-        # Check if setting exists and is not commented
-        if grep -q -E "^;?\s*${setting}\s*=" "${php_ini_path}"; then
+        local key="${setting%=*}"
+        local value="${setting#*=}"
+        
+        if grep -q -E "^;?\s*${key}\s*=" "${php_ini_path}"; then
             # Update existing setting
-            sed -i -E "s/^;?\s*${setting}\s*=.*$/${setting} = ${value}/" "${php_ini_path}"
+            sed -i -E "s/^;?\s*${key}\s*=.*$/${key} = ${value}/" "${php_ini_path}"
         else
             # Add new setting
-            echo "${setting} = ${value}" >> "${php_ini_path}"
+            echo "${key} = ${value}" >> "${php_ini_path}"
         fi
-        
-        log_info "✅ Set ${setting} = ${value}"
+        log_info "✅ Set ${key} = ${value} in ${php_ini_path##*/}"
     done
     
     # Ensure the PHP-FPM configuration is properly set
     if [ -f "${php_fpm_conf}" ]; then
-        # Set emergency_restart_threshold and emergency_restart_interval
-        for setting in emergency_restart_threshold emergency_restart_interval process_control_timeout; do
-            if ! grep -q "^${setting}" "${php_fpm_conf}"; then
-                case "${setting}" in
-                    emergency_restart_threshold)
-                        echo "emergency_restart_threshold = 10" >> "${php_fpm_conf}"
-                        ;;
-                    emergency_restart_interval)
-                        echo "emergency_restart_interval = 1m" >> "${php_fpm_conf}"
-                        ;;
-                    process_control_timeout)
-                        echo "process_control_timeout = 10s" >> "${php_fpm_conf}"
-                        ;;
-                esac
+        log_info "🔧 Configuring PHP-FPM..."
+        
+        # Create a backup if it doesn't exist
+        if [ ! -f "${php_fpm_conf}.original" ]; then
+            cp "${php_fpm_conf}" "${php_fpm_conf}.original"
+        fi
+        
+        # Set FPM settings
+        declare -A fpm_settings=(
+            ["emergency_restart_threshold"]="10"
+            ["emergency_restart_interval"]="1m"
+            ["process_control_timeout"]="10s"
+        )
+        
+        for setting in "${!fpm_settings[@]}"; do
+            local value="${fpm_settings[$setting]}"
+            if grep -q -E "^;?\s*${setting}\s*=" "${php_fpm_conf}"; then
+                sed -i -E "s/^;?\s*${setting}\s*=.*$/${setting} = ${value}/" "${php_fpm_conf}"
+            else
+                echo "${setting} = ${value}" >> "${php_fpm_conf}"
             fi
+            log_info "✅ Set ${setting} = ${value} in ${php_fpm_conf##*/}"
         done
+    fi
+    
+    # Restart PHP-FPM to apply changes
+    log_info "🔄 Restarting PHP-FPM service..."
+    if systemctl restart "php${PHP_VERSION}-fpm"; then
+        log_success "✅ PHP-FPM restarted successfully"
+    else
+        log_warning "⚠️  Failed to restart PHP-FPM. Changes may not take effect until next restart."
     fi
     
     log_success "✅ PHP settings applied successfully"
