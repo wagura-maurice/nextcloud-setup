@@ -24,7 +24,6 @@ sudo chmod +x src/utilities/configure/configure-*.sh
 
 # Run system preparation
 sudo ./prepare-system.sh
-
 ```
 
 ## Installation
