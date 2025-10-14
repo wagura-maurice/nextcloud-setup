@@ -195,58 +195,16 @@ apply_php_settings() {
         cp "${php_ini_path}" "${php_ini_path}.original"
     fi
     
-    # Remove any existing conflicting nextcloud config files
+    # Ensure the configuration directory exists and has correct permissions
+    mkdir -p "$(dirname "${nextcloud_ini}")"
+    
+    # Remove any existing nextcloud config files to prevent conflicts
     for f in "/etc/php/${PHP_VERSION}/fpm/conf.d/"*nextcloud*.ini; do
-        if [ "$f" != "$nextcloud_ini" ] && [ -f "$f" ]; then
-            log_info "Removing conflicting PHP config: $f"
+        if [ -f "$f" ]; then
+            log_info "Removing existing PHP config: $f"
             rm -f "$f"
         fi
     done
-    
-    # Create new configuration file with proper formatting
-    log_info "📝 Creating Nextcloud PHP configuration..."
-    
-    cat > "${nextcloud_ini}" << 'EOF'
-; Nextcloud recommended PHP settings
-; This file is auto-generated - do not edit manually
-
-; Resource limits
-memory_limit = 2G
-upload_max_filesize = 10G
-post_max_size = 10G
-max_execution_time = 3600
-max_input_time = 3600
-
-; Timezone
-date.timezone = UTC
-
-; OPcache settings
-opcache.enable = 1
-opcache.enable_cli = 1
-opcache.memory_consumption = 256
-opcache.interned_strings_buffer = 16
-opcache.max_accelerated_files = 10000
-opcache.validate_timestamps = 1
-opcache.save_comments = 1
-
-; Session settings
-session.gc_maxlifetime = 3600
-session.cookie_lifetime = 0
-session.cookie_httponly = 1
-session.cookie_secure = 1
-session.use_strict_mode = 1
-
-; Disable PHP output buffering
-output_buffering = Off
-
-; Disable expose_php for security
-expose_php = Off
-
-; Enable file uploads
-file_uploads = On
-
-; Set default charset
-default_charset = "UTF-8"
 
 ; Disable dangerous functions
 disable_functions = exec,passthru,shell_exec,system,proc_open,popen,curl_multi_exec,parse_ini_file,show_source
@@ -397,24 +355,42 @@ configure_php_fpm() {
     # Configure PHP.ini
     log_info "Configuring PHP settings..."
     
-    # Create a custom PHP configuration for Nextcloud
-    local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/90-nextcloud.ini"
+    # Remove any existing nextcloud config files to prevent conflicts
+    for f in "/etc/php/${PHP_VERSION}/fpm/conf.d/"*nextcloud*.ini; do
+        if [ -f "$f" ]; then
+            log_info "Removing existing PHP config: $f"
+            rm -f "$f"
+        fi
+    done
     
-    # Nextcloud recommended settings
+    # Create a single consolidated PHP configuration for Nextcloud
+    local nextcloud_ini="/etc/php/${PHP_VERSION}/fpm/conf.d/99-nextcloud.ini"
+    
+    log_info "📝 Creating consolidated Nextcloud PHP configuration..."
+    
+    # Create parent directory if it doesn't exist
+    mkdir -p "$(dirname "${nextcloud_ini}")"
+    
+    # Create new configuration file with proper permissions
+    touch "${nextcloud_ini}"
+    chmod 644 "${nextcloud_ini}"
+    
+    # Write the consolidated configuration
     cat > "${nextcloud_ini}" << 'EOF'
-; Nextcloud recommended settings
-max_execution_time = 3600
-max_input_time = 3600
+; Nextcloud recommended PHP settings
+; This file is auto-generated - do not edit manually
+
+; Resource limits
 memory_limit = 2G
 upload_max_filesize = 10G
 post_max_size = 10G
+max_execution_time = 3600
+max_input_time = 3600
 
-; Default timezone
-[Date]
+; Timezone
 date.timezone = UTC
 
-; OPcache settings for better performance
-[opcache]
+; OPcache settings
 opcache.enable = 1
 opcache.enable_cli = 1
 opcache.memory_consumption = 256
@@ -426,27 +402,35 @@ opcache.revalidate_freq = 1
 opcache.fast_shutdown = 1
 
 ; Session settings
-[session]
 session.auto_start = 0
+session.gc_maxlifetime = 3600
+session.cookie_lifetime = 0
 session.cookie_httponly = 1
 session.cookie_secure = 1
 session.use_strict_mode = 1
 session.cookie_samesite = Lax
-session.cookie_lifetime = 0
-session.gc_maxlifetime = 1440
 
-; Other recommended settings
-[PHP]
+; Other settings
 default_socket_timeout = 60
-
-[Pcre]
 pcre.jit = 1
 pcre.backtrack_limit = 1000000
 pcre.recursion_limit = 100000
 
-[MySQL]
+; Database settings
 mysql.connect_timeout = 60
 mysqli.reconnect = Off
+
+; Disable PHP output buffering
+output_buffering = Off
+
+; Disable expose_php for security
+expose_php = Off
+
+; Enable file uploads
+file_uploads = On
+
+; Set default charset
+default_charset = "UTF-8"
 
 [Zend]
 zend.assertions = -1
